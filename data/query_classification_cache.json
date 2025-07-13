@@ -158,5 +158,13 @@
     "category": "information_search",
     "validation_method": "enhanced_heuristic",
     "timestamp": 1752404941.4353752
+  },
+  "test search": {
+    "is_valid": true,
+    "confidence": 0.6,
+    "reason": "No clear indicators - defaulting to valid",
+    "category": "information_search",
+    "validation_method": "enhanced_heuristic",
+    "timestamp": 1752410789.76285
   }
 }

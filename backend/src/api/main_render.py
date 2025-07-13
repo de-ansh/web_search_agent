@@ -102,8 +102,8 @@ async def search_query(request: QueryRequest):
                 is_valid=False,
                 found_similar=False,
                 results=[],
-                message=validation_result.message,
-                validation_info=validation_result.to_dict()
+                message=validation_result.reason,
+                validation_info=validation_result.dict()
             )
         
         # Check for similar queries
@@ -122,8 +122,8 @@ async def search_query(request: QueryRequest):
                 results=similar_query_result.cached_results,
                 message=f"Found similar query with {similar_query_result.similarity_score:.1%} similarity",
                 combined_summary=combined_summary,
-                validation_info=validation_result.to_dict(),
-                cache_info=similar_query_result.to_dict()
+                validation_info=validation_result.dict(),
+                cache_info=similar_query_result.dict()
             )
         
         # Perform new search
@@ -142,7 +142,7 @@ async def search_query(request: QueryRequest):
             results=results,
             message=f"Found {len(results)} results for your query",
             combined_summary=combined_summary,
-            validation_info=validation_result.to_dict()
+            validation_info=validation_result.dict()
         )
         
         total_time = time.time() - start_time
