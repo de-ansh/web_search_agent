@@ -71,9 +71,9 @@ deploy_backend() {
     # Make build script executable
     chmod +x build.sh || true
     
-    # Create railway service for backend
-    echo -e "${YELLOW}Creating Railway service for backend...${NC}"
-    railway service create web-search-agent-backend || railway service
+    # Initialize Railway project for backend
+    echo -e "${YELLOW}Initializing Railway project for backend...${NC}"
+    railway init --name web-search-agent-backend || railway init
     
     # Set environment variables
     echo -e "${YELLOW}Setting up environment variables...${NC}"
@@ -136,9 +136,9 @@ deploy_frontend() {
     
     cd frontend
     
-    # Create railway service for frontend
-    echo -e "${YELLOW}Creating Railway service for frontend...${NC}"
-    railway service create web-search-agent-frontend || railway service
+    # Initialize Railway project for frontend
+    echo -e "${YELLOW}Initializing Railway project for frontend...${NC}"
+    railway init --name web-search-agent-frontend || railway init
     
     # Set environment variables
     BACKEND_URL=$(cat ../.backend_url)
