@@ -39,7 +39,7 @@ const searchQuotes = [
 const fetchSearchResults = async (query: string) => {
   const endpoint = '/api/search';
   const requestData = { query: query.trim() };
-  const timeoutMs = 120000; // 30 seconds timeout for optimized backend
+  const timeoutMs = 240000; // 4 minutes timeout for enhanced backend processing with LLM validation
 
   console.log(`Starting search request to ${endpoint} with timeout ${timeoutMs}ms`);
   const startTime = Date.now();
@@ -52,6 +52,27 @@ const fetchSearchResults = async (query: string) => {
   } catch (error) {
     const endTime = Date.now();
     console.log(`Search failed after ${endTime - startTime}ms:`, error);
+    throw error;
+  }
+};
+
+// Fallback search with reduced features for when main search times out
+const fetchFastSearchResults = async (query: string) => {
+  const endpoint = '/api/search/fast';
+  const requestData = { query: query.trim() };
+  const timeoutMs = 60000; // 1 minute for fast search
+
+  console.log(`Starting fast search request to ${endpoint} with timeout ${timeoutMs}ms`);
+  const startTime = Date.now();
+  
+  try {
+    const response = await axios.post<ApiResponse>(endpoint, requestData, { timeout: timeoutMs });
+    const endTime = Date.now();
+    console.log(`Fast search completed in ${endTime - startTime}ms`);
+    return response.data;
+  } catch (error) {
+    const endTime = Date.now();
+    console.log(`Fast search failed after ${endTime - startTime}ms:`, error);
     throw error;
   }
 };
@@ -110,25 +131,51 @@ export default function Home() {
       
       setSearchProgress('Validating query...');
       
-      // Show progress updates
+      // Show progress updates for enhanced search
       const progressMessages = [
         'Validating query...',
         'Searching web engines...',
-        'Processing sources in parallel...',
-        'Generating comprehensive summary...',
-        'Finalizing results...'
+        'Processing sources with retry mechanisms...',
+        'Applying circuit breakers and rate limiting...',
+        'Generating comprehensive AI summary...',
+        'Finalizing enhanced results...'
       ];
       
       let messageIndex = 0;
       const progressTimer = setInterval(() => {
         messageIndex = Math.min(messageIndex + 1, progressMessages.length - 1);
         setSearchProgress(progressMessages[messageIndex]);
-      }, 4000); // Faster progression for optimized backend
+      }, 5000); // Slower progression for enhanced backend
 
-      const result = await fetchSearchResults(searchQuery);
-      clearInterval(progressTimer);
-      setResults(result);
-      setSearchProgress('');
+      try {
+        // Try enhanced search first
+        const result = await fetchSearchResults(searchQuery);
+        clearInterval(progressTimer);
+        setResults(result);
+        setSearchProgress('');
+      } catch (enhancedSearchError) {
+        clearInterval(progressTimer);
+        
+        // If enhanced search times out, try fast search as fallback
+        if (axios.isAxiosError(enhancedSearchError) && enhancedSearchError.code === 'ECONNABORTED') {
+          console.log('Enhanced search timed out, trying fast search fallback...');
+          setSearchProgress('Enhanced search timed out, trying fast search...');
+          
+          try {
+            const fastResult = await fetchFastSearchResults(searchQuery);
+            setResults({
+              ...fastResult,
+              message: `Enhanced search timed out, but here are results from fast search: ${fastResult.message || ''}`
+            });
+            setSearchProgress('');
+                     } catch (fastSearchError) {
+             console.error('Fast search also failed:', fastSearchError);
+             throw enhancedSearchError; // Throw original error if fast search also fails
+           }
+        } else {
+          throw enhancedSearchError; // Re-throw non-timeout errors
+        }
+      }
     } catch (error) {
       console.error('Search error:', error);
       let errorMessage = 'Search failed. ';
@@ -140,7 +187,8 @@ export default function Home() {
         } else if (error.response?.status && error.response.status >= 500) {
           errorMessage += `Server error (${error.response.status}): ${error.response?.data?.detail || error.response?.statusText || 'Internal server error'}`;
         } else if (error.code === 'ECONNABORTED') {
-          errorMessage += 'Search timed out after 30 seconds. This can happen when websites are slow to respond or have heavy protection. ';
+          errorMessage += 'Search timed out. This can happen when websites are slow to respond or have heavy protection. ';
+          errorMessage += 'The system attempted both enhanced and fast search modes. ';
           errorMessage += 'Tips: Try more specific search terms, search for popular topics, or try again in a moment.';
         } else {
           errorMessage += `Error: ${error.response?.data?.detail || error.message}`;
@@ -193,9 +241,9 @@ export default function Home() {
               backendStatus === 'offline' ? 'bg-red-500' : 'bg-yellow-500'
             }`}></div>
             <span className="text-gray-500">
-              Backend: {backendStatus === 'online' ? 'Connected' : 
+              Backend: {backendStatus === 'online' ? 'Connected (Enhanced v2.0)' : 
                        backendStatus === 'offline' ? 'Disconnected' : 'Checking...'} | 
-              Frontend: v2.0 (Optimized Parallel Processing)
+              Frontend: v2.1 (Enhanced Features)
             </span>
           </div>
         </motion.div>
