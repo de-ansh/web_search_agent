@@ -1,0 +1,63 @@
+steps:
+  # Build the container image
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'build'
+      - '-t'
+      - 'gcr.io/$PROJECT_ID/web-search-agent-backend:$COMMIT_SHA'
+      - '-t'
+      - 'gcr.io/$PROJECT_ID/web-search-agent-backend:latest'
+      - '.'
+    dir: 'backend'
+
+  # Push the container image to Container Registry
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'push'
+      - 'gcr.io/$PROJECT_ID/web-search-agent-backend:$COMMIT_SHA'
+
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'push'
+      - 'gcr.io/$PROJECT_ID/web-search-agent-backend:latest'
+
+  # Deploy container image to Cloud Run
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    entrypoint: 'gcloud'
+    args:
+      - 'run'
+      - 'deploy'
+      - 'web-search-agent-backend'
+      - '--image'
+      - 'gcr.io/$PROJECT_ID/web-search-agent-backend:$COMMIT_SHA'
+      - '--region'
+      - 'us-central1'
+      - '--platform'
+      - 'managed'
+      - '--memory'
+      - '2Gi'
+      - '--cpu'
+      - '2'
+      - '--timeout'
+      - '300s'
+      - '--max-instances'
+      - '10'
+      - '--min-instances'
+      - '0'
+      - '--port'
+      - '8000'
+      - '--allow-unauthenticated'
+      - '--set-env-vars'
+      - 'PORT=8000'
+      - '--set-secrets'
+      - 'OPENAI_API_KEY=openai-api-key:latest'
+
+images:
+  - 'gcr.io/$PROJECT_ID/web-search-agent-backend:$COMMIT_SHA'
+  - 'gcr.io/$PROJECT_ID/web-search-agent-backend:latest'
+
+options:
+  logging: CLOUD_LOGGING_ONLY
+  machineType: 'E2_HIGHCPU_8'
+  
+timeout: 1800s 

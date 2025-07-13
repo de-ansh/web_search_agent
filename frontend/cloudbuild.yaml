@@ -1,0 +1,61 @@
+steps:
+  # Build the container image
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'build'
+      - '-t'
+      - 'gcr.io/$PROJECT_ID/web-search-agent-frontend:$COMMIT_SHA'
+      - '-t'
+      - 'gcr.io/$PROJECT_ID/web-search-agent-frontend:latest'
+      - '.'
+    dir: 'frontend'
+
+  # Push the container image to Container Registry
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'push'
+      - 'gcr.io/$PROJECT_ID/web-search-agent-frontend:$COMMIT_SHA'
+
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'push'
+      - 'gcr.io/$PROJECT_ID/web-search-agent-frontend:latest'
+
+  # Deploy container image to Cloud Run
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    entrypoint: 'gcloud'
+    args:
+      - 'run'
+      - 'deploy'
+      - 'web-search-agent-frontend'
+      - '--image'
+      - 'gcr.io/$PROJECT_ID/web-search-agent-frontend:$COMMIT_SHA'
+      - '--region'
+      - 'us-central1'
+      - '--platform'
+      - 'managed'
+      - '--memory'
+      - '1Gi'
+      - '--cpu'
+      - '1'
+      - '--timeout'
+      - '60s'
+      - '--max-instances'
+      - '10'
+      - '--min-instances'
+      - '0'
+      - '--port'
+      - '3000'
+      - '--allow-unauthenticated'
+      - '--set-env-vars'
+      - 'PORT=3000,NODE_ENV=production'
+
+images:
+  - 'gcr.io/$PROJECT_ID/web-search-agent-frontend:$COMMIT_SHA'
+  - 'gcr.io/$PROJECT_ID/web-search-agent-frontend:latest'
+
+options:
+  logging: CLOUD_LOGGING_ONLY
+  machineType: 'E2_HIGHCPU_4'
+  
+timeout: 1200s 
