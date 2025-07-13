@@ -1,0 +1,154 @@
+{
+  "how to master salesforce": {
+    "is_valid": true,
+    "confidence": 0.8,
+    "reason": "Contains pattern indicating information_search",
+    "category": "information_search",
+    "validation_method": "enhanced_heuristic",
+    "timestamp": 1752387774.800323
+  },
+  "how to master agentic ai?": {
+    "is_valid": true,
+    "confidence": 0.8,
+    "reason": "Contains pattern indicating information_search",
+    "category": "information_search",
+    "validation_method": "enhanced_heuristic",
+    "timestamp": 1752387880.129684
+  },
+  "whats the current shares price of itc hotels?": {
+    "is_valid": true,
+    "confidence": 0.7,
+    "reason": "Contains pattern indicating news_current_events",
+    "category": "news_current_events",
+    "validation_method": "enhanced_heuristic",
+    "timestamp": 1752388670.594458
+  },
+  "whats the current shares price of itc?": {
+    "is_valid": true,
+    "confidence": 0.7,
+    "reason": "Contains pattern indicating news_current_events",
+    "category": "news_current_events",
+    "validation_method": "enhanced_heuristic",
+    "timestamp": 1752389659.322796
+  },
+  "whats the current shares price of itc ltd?": {
+    "is_valid": true,
+    "confidence": 0.7,
+    "reason": "Contains pattern indicating news_current_events",
+    "category": "news_current_events",
+    "validation_method": "enhanced_heuristic",
+    "timestamp": 1752389674.984982
+  },
+  "itc ltd share price": {
+    "is_valid": true,
+    "confidence": 0.6,
+    "reason": "No clear indicators - defaulting to valid",
+    "category": "information_search",
+    "validation_method": "enhanced_heuristic",
+    "timestamp": 1752390032.0766551
+  },
+  "whats the current shares price of  tata powers?": {
+    "is_valid": true,
+    "confidence": 0.7,
+    "reason": "Contains pattern indicating news_current_events",
+    "category": "news_current_events",
+    "validation_method": "enhanced_heuristic",
+    "timestamp": 1752390087.9721138
+  },
+  "whats the current shares price of  tata motors?": {
+    "is_valid": true,
+    "confidence": 0.7,
+    "reason": "Contains pattern indicating news_current_events",
+    "category": "news_current_events",
+    "validation_method": "enhanced_heuristic",
+    "timestamp": 1752390140.242283
+  },
+  "whats the current shares price of  tata steel?": {
+    "is_valid": true,
+    "confidence": 0.7,
+    "reason": "Contains pattern indicating news_current_events",
+    "category": "news_current_events",
+    "validation_method": "enhanced_heuristic",
+    "timestamp": 1752390637.089468
+  },
+  "tata tele": {
+    "is_valid": true,
+    "confidence": 0.6,
+    "reason": "No clear indicators - defaulting to valid",
+    "category": "information_search",
+    "validation_method": "enhanced_heuristic",
+    "timestamp": 1752390659.081666
+  },
+  "tata motors": {
+    "is_valid": true,
+    "confidence": 0.6,
+    "reason": "No clear indicators - defaulting to valid",
+    "category": "information_search",
+    "validation_method": "enhanced_heuristic",
+    "timestamp": 1752390829.0876758
+  },
+  "tata motors current share price": {
+    "is_valid": true,
+    "confidence": 0.7,
+    "reason": "Contains pattern indicating news_current_events",
+    "category": "news_current_events",
+    "validation_method": "enhanced_heuristic",
+    "timestamp": 1752390932.5131361
+  },
+  "tata steel current share price": {
+    "is_valid": true,
+    "confidence": 0.7,
+    "reason": "Contains pattern indicating news_current_events",
+    "category": "news_current_events",
+    "validation_method": "enhanced_heuristic",
+    "timestamp": 1752390977.895205
+  },
+  "tata elexis current share price": {
+    "is_valid": true,
+    "confidence": 0.7,
+    "reason": "Contains pattern indicating news_current_events",
+    "category": "news_current_events",
+    "validation_method": "enhanced_heuristic",
+    "timestamp": 1752391105.1367302
+  },
+  "tata motors share price": {
+    "is_valid": true,
+    "confidence": 0.6,
+    "reason": "No clear indicators - defaulting to valid",
+    "category": "information_search",
+    "validation_method": "enhanced_heuristic",
+    "timestamp": 1752391400.2812319
+  },
+  "tata steel share price": {
+    "is_valid": true,
+    "confidence": 0.6,
+    "reason": "No clear indicators - defaulting to valid",
+    "category": "information_search",
+    "validation_method": "enhanced_heuristic",
+    "timestamp": 1752391410.5037131
+  },
+  "tcs share price": {
+    "is_valid": true,
+    "confidence": 0.6,
+    "reason": "No clear indicators - defaulting to valid",
+    "category": "information_search",
+    "validation_method": "enhanced_heuristic",
+    "timestamp": 1752391445.623569
+  },
+  "itc share price": {
+    "is_valid": true,
+    "confidence": 0.6,
+    "reason": "No clear indicators - defaulting to valid",
+    "category": "information_search",
+    "validation_method": "enhanced_heuristic",
+    "timestamp": 1752391481.358935
+  },
+  "red teaming": {
+    "is_valid": true,
+    "confidence": 0.6,
+    "reason": "No clear indicators - defaulting to valid",
+    "category": "information_search",
+    "validation_method": "enhanced_heuristic",
+    "timestamp": 1752391505.651639
+  }
+}

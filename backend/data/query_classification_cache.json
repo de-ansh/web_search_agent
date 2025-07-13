@@ -1,0 +1,18 @@
+{
+  "whats mcp?": {
+    "is_valid": true,
+    "confidence": 0.6,
+    "reason": "No clear indicators - defaulting to valid",
+    "category": "information_search",
+    "validation_method": "enhanced_heuristic",
+    "timestamp": 1752386503.1037629
+  },
+  "how does docker work": {
+    "is_valid": true,
+    "confidence": 0.8,
+    "reason": "Contains pattern indicating information_search",
+    "category": "information_search",
+    "validation_method": "enhanced_heuristic",
+    "timestamp": 1752386974.652055
+  }
+}

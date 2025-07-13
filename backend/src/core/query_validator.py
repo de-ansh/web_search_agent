@@ -1,12 +1,16 @@
 """
-Query validation module that uses AI to classify queries as valid or invalid.
+Enhanced query validation module using lightweight LLM classifier for robust edge case handling
 """
 
 import os
-from typing import Dict, Any, Optional
+import json
+import re
+from typing import Dict, Any, Optional, List
 from pydantic import BaseModel
 import openai
 from dotenv import load_dotenv
+import time
+from datetime import datetime, timedelta
 
 load_dotenv()
 
@@ -16,42 +20,102 @@ class QueryValidationResult(BaseModel):
     confidence: float
     reason: str
     category: Optional[str] = None
+    validation_method: str = "llm"
 
-class QueryValidator:
-    """Validates user queries using AI to determine if they are searchable"""
+class QueryClassificationCache:
+    """Cache for query classification results to improve performance"""
+    
+    def __init__(self, cache_file: str = "data/query_classification_cache.json"):
+        self.cache_file = cache_file
+        self._ensure_cache_file()
+        
+    def _ensure_cache_file(self):
+        """Ensure cache file exists"""
+        os.makedirs(os.path.dirname(self.cache_file), exist_ok=True)
+        if not os.path.exists(self.cache_file):
+            with open(self.cache_file, 'w') as f:
+                json.dump({}, f)
+    
+    def get_cached_result(self, query: str) -> Optional[QueryValidationResult]:
+        """Get cached validation result"""
+        try:
+            with open(self.cache_file, 'r') as f:
+                cache = json.load(f)
+                
+            query_key = query.lower().strip()
+            if query_key in cache:
+                result_data = cache[query_key]
+                # Check if result is still fresh (24 hours)
+                if time.time() - result_data.get('timestamp', 0) < 86400:
+                    return QueryValidationResult(**result_data)
+                    
+        except (json.JSONDecodeError, FileNotFoundError):
+            pass
+        return None
+    
+    def cache_result(self, query: str, result: QueryValidationResult):
+        """Cache validation result"""
+        try:
+            with open(self.cache_file, 'r') as f:
+                cache = json.load(f)
+        except (json.JSONDecodeError, FileNotFoundError):
+            cache = {}
+            
+        query_key = query.lower().strip()
+        result_dict = result.dict()
+        result_dict['timestamp'] = time.time()
+        cache[query_key] = result_dict
+        
+        # Keep only last 1000 entries
+        if len(cache) > 1000:
+            # Remove oldest entries
+            sorted_items = sorted(cache.items(), key=lambda x: x[1].get('timestamp', 0))
+            cache = dict(sorted_items[-1000:])
+            
+        with open(self.cache_file, 'w') as f:
+            json.dump(cache, f, indent=2)
+
+class EnhancedQueryValidator:
+    """Enhanced query validator using lightweight LLM classifier"""
     
     def __init__(self, api_key: Optional[str] = None):
-        """Initialize the query validator"""
+        """Initialize the enhanced query validator"""
         self.api_key = api_key or os.getenv("OPENAI_API_KEY")
         if self.api_key:
-            openai.api_key = self.api_key
+            self.openai_client = openai.Client(api_key=self.api_key)
+        else:
+            self.openai_client = None
         
-        # Define valid query categories
-        self.valid_categories = [
-            "information_search",
-            "product_search", 
-            "location_search",
-            "how_to",
-            "definition",
-            "news",
-            "reviews",
-            "comparison",
-            "tutorial",
-            "guide"
-        ]
+        self.classification_cache = QueryClassificationCache()
         
-        # Define invalid query patterns
-        self.invalid_patterns = [
-            "personal_task",  # walk my pet, do laundry
-            "action_request",  # add to grocery, call someone
-            "personal_reminder",  # remember to buy milk
-            "command",  # turn on lights, play music
-            "personal_note"  # my password is, I need to
-        ]
+        # Enhanced category definitions
+        self.valid_categories = {
+            "information_search": "General information seeking queries",
+            "how_to_guide": "How-to guides and tutorials",
+            "definition_lookup": "Word definitions and explanations",
+            "comparison_analysis": "Comparing two or more things",
+            "product_research": "Product reviews and research",
+            "news_current_events": "Current news and events",
+            "educational_content": "Educational and learning content",
+            "technical_documentation": "Technical documentation and specs",
+            "location_services": "Location-based searches",
+            "troubleshooting": "Problem-solving and troubleshooting"
+        }
+        
+        self.invalid_categories = {
+            "personal_action": "Personal tasks and actions",
+            "device_control": "Device control commands",
+            "personal_reminder": "Personal reminders and notes",
+            "social_interaction": "Social media or messaging actions",
+            "file_management": "File and app management",
+            "scheduling": "Calendar and scheduling actions",
+            "entertainment_control": "Media and entertainment control",
+            "system_command": "System commands and operations"
+        }
     
     def validate_query(self, query: str) -> QueryValidationResult:
         """
-        Validate if a query is suitable for web search
+        Enhanced query validation using LLM classifier
         
         Args:
             query: The user's query string
@@ -63,156 +127,242 @@ class QueryValidator:
             return QueryValidationResult(
                 is_valid=False,
                 confidence=1.0,
-                reason="Empty or whitespace-only query"
+                reason="Empty or whitespace-only query",
+                validation_method="basic"
             )
         
-        # Quick heuristic check first
-        if self._quick_invalid_check(query):
-            return QueryValidationResult(
-                is_valid=False,
-                confidence=0.9,
-                reason="Query appears to be a personal task or action request"
-            )
+        # Check cache first
+        cached_result = self.classification_cache.get_cached_result(query)
+        if cached_result:
+            cached_result.validation_method = "cached"
+            return cached_result
         
-        # Use AI for detailed classification if API key is available
-        if self.api_key:
-            return self._ai_validate_query(query)
+        # Basic heuristic check for obviously invalid queries
+        heuristic_result = self._heuristic_check(query)
+        if heuristic_result.confidence > 0.9:
+            self.classification_cache.cache_result(query, heuristic_result)
+            return heuristic_result
+        
+        # Use LLM for detailed classification
+        if self.openai_client:
+            llm_result = self._llm_validate_query(query)
+            self.classification_cache.cache_result(query, llm_result)
+            return llm_result
         else:
-            # Fallback to rule-based validation
-            return self._rule_based_validate_query(query)
+            # Enhanced fallback when no OpenAI API key
+            enhanced_result = self._enhanced_heuristic_validation(query)
+            self.classification_cache.cache_result(query, enhanced_result)
+            return enhanced_result
     
-    def _quick_invalid_check(self, query: str) -> bool:
-        """Quick check for obviously invalid queries"""
-        query_lower = query.lower()
+    def _heuristic_check(self, query: str) -> QueryValidationResult:
+        """Enhanced heuristic check for obviously invalid queries"""
+        query_lower = query.lower().strip()
         
-        # Check for personal task indicators
-        personal_indicators = [
-            "walk my", "feed my", "call", "text", "message",
-            "add to", "buy", "purchase", "order",
-            "remember to", "remind me", "don't forget",
-            "turn on", "turn off", "play", "stop",
-            "my password", "my phone", "my email"
+        # Strong invalid indicators
+        strong_invalid_patterns = [
+            r'\b(call|text|message|send)\s+\w+',
+            r'\b(turn\s+on|turn\s+off|start|stop|pause|play)\s+\w+',
+            r'\b(add\s+to|remove\s+from|delete)\s+\w+',
+            r'\b(remind\s+me|remember\s+to|don\'t\s+forget)',
+            r'\b(open|close|launch|quit)\s+\w+',
+            r'\b(walk|feed|take)\s+my\s+\w+',
+            r'\b(buy|purchase|order)\s+\w+',
+            r'\b(schedule|book|cancel)\s+\w+',
+            r'\bmy\s+(password|pin|address|phone)'
         ]
         
-        return any(indicator in query_lower for indicator in personal_indicators)
+        for pattern in strong_invalid_patterns:
+            if re.search(pattern, query_lower):
+                return QueryValidationResult(
+                    is_valid=False,
+                    confidence=0.95,
+                    reason=f"Contains personal action pattern: {pattern}",
+                    category="personal_action",
+                    validation_method="heuristic"
+                )
+        
+        # Strong valid indicators
+        strong_valid_patterns = [
+            r'\b(what\s+is|what\s+are|what\s+does|what\s+means)',
+            r'\b(how\s+to|how\s+do|how\s+can|how\s+does)',
+            r'\b(why\s+is|why\s+do|why\s+does|why\s+would)',
+            r'\b(when\s+is|when\s+do|when\s+does|when\s+was)',
+            r'\b(where\s+is|where\s+can|where\s+to)',
+            r'\b(best\s+\w+|top\s+\w+|review\s+of|comparison\s+of)',
+            r'\b(tutorial|guide|instructions|documentation)',
+            r'\b(definition\s+of|meaning\s+of|explain\s+\w+)',
+            r'\b(difference\s+between|compare\s+\w+)',
+            r'\b(latest\s+news|current\s+events|recent\s+\w+)'
+        ]
+        
+        for pattern in strong_valid_patterns:
+            if re.search(pattern, query_lower):
+                return QueryValidationResult(
+                    is_valid=True,
+                    confidence=0.9,
+                    reason=f"Contains information-seeking pattern: {pattern}",
+                    category="information_search",
+                    validation_method="heuristic"
+                )
+        
+        # Ambiguous case - moderate confidence
+        return QueryValidationResult(
+            is_valid=True,
+            confidence=0.6,
+            reason="No clear indicators - defaulting to valid",
+            category="information_search",
+            validation_method="heuristic"
+        )
     
-    def _ai_validate_query(self, query: str) -> QueryValidationResult:
-        """Use AI to validate the query"""
+    def _llm_validate_query(self, query: str) -> QueryValidationResult:
+        """Use LLM for sophisticated query validation"""
         try:
-            system_prompt = """You are a query classifier for a web search agent. 
-            Determine if a user query is suitable for web search or if it's a personal task/action request.
+            if not self.openai_client:
+                return self._enhanced_heuristic_validation(query)
+                
+            system_prompt = f"""You are a sophisticated query classifier for a web search agent. 
+            Your task is to determine if a user query is suitable for web search or if it's a personal task/action request.
             
-            Valid queries are those that seek information, knowledge, or resources that can be found on the web.
-            Invalid queries are personal tasks, action requests, or reminders that cannot be answered by web search.
+            VALID QUERIES are those that can be answered through web search:
+            {json.dumps(self.valid_categories, indent=2)}
             
-            Respond with a JSON object containing:
-            - is_valid: boolean
-            - confidence: float (0.0 to 1.0)
-            - reason: string explaining the decision
-            - category: string (one of: information_search, product_search, location_search, how_to, definition, news, reviews, comparison, tutorial, guide, personal_task, action_request, personal_reminder, command, personal_note)
+            INVALID QUERIES are personal tasks, actions, or commands that cannot be answered by web search:
+            {json.dumps(self.invalid_categories, indent=2)}
             
-            Examples:
-            - "best restaurants in NYC" -> valid, information_search
-            - "walk my dog" -> invalid, personal_task
-            - "Python tutorial" -> valid, tutorial
-            - "add milk to grocery list" -> invalid, action_request
+            Consider edge cases carefully:
+            - "play music" (invalid - device control) vs "play music history" (valid - information search)
+            - "call mom" (invalid - personal action) vs "call center best practices" (valid - information search)
+            - "best restaurants" (valid - information search) vs "book restaurant" (invalid - personal action)
+            
+            Respond with ONLY a JSON object containing:
+            {{
+                "is_valid": boolean,
+                "confidence": float (0.0 to 1.0),
+                "reason": "brief explanation of decision",
+                "category": "category from above lists"
+            }}
             """
             
-            response = openai.Client().chat.completions.create(
+            response = self.openai_client.chat.completions.create(
                 model="gpt-3.5-turbo",
                 messages=[
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": f"Classify this query: {query}"}
                 ],
                 temperature=0.1,
-                max_tokens=200
+                max_tokens=150
             )
             
-            # Parse the response
             content = response.choices[0].message.content
-            # Extract JSON from the response
-            import json
-            import re
-            # Find JSON in the response
-            if content:  # Check that content is not None
-                json_match = re.search(r'\{.*\}', content, re.DOTALL)
-                if json_match:
-                    result_data = json.loads(json_match.group())
-                    return QueryValidationResult(**result_data)
-                else:
-                    # Fallback parsing
-                    return self._parse_ai_response(content)
+            if content:
+                # Parse JSON response
+                try:
+                    result_data = json.loads(content.strip())
+                    return QueryValidationResult(
+                        **result_data,
+                        validation_method="llm"
+                    )
+                except json.JSONDecodeError:
+                    # Try to extract JSON from response
+                    json_match = re.search(r'\{.*\}', content, re.DOTALL)
+                    if json_match:
+                        result_data = json.loads(json_match.group())
+                        return QueryValidationResult(
+                            **result_data,
+                            validation_method="llm"
+                        )
             
-            # Fallback if content is None
-            return self._rule_based_validate_query(query)
+            # Fallback if LLM response is malformed
+            return self._enhanced_heuristic_validation(query)
                 
         except Exception as e:
-            # Fallback to rule-based validation
-            return self._rule_based_validate_query(query)
+            print(f"Error in LLM validation: {e}")
+            return self._enhanced_heuristic_validation(query)
     
-    def _parse_ai_response(self, content: str) -> QueryValidationResult:
-        """Parse AI response when JSON parsing fails"""
-        content_lower = content.lower()
+    def _enhanced_heuristic_validation(self, query: str) -> QueryValidationResult:
+        """Enhanced heuristic validation as fallback"""
+        query_lower = query.lower().strip()
         
-        is_valid = "valid" in content_lower and "invalid" not in content_lower
-        confidence = 0.8 if is_valid else 0.7
+        # Context-aware pattern matching
+        context_patterns = {
+            "valid": [
+                (r'\b(what|how|why|when|where|who|which)\s+', 0.8, "information_search"),
+                (r'\b(best|top|good|better|worst|review|rating)\s+', 0.7, "product_research"),
+                (r'\b(tutorial|guide|learn|study|understand)\s+', 0.8, "educational_content"),
+                (r'\b(definition|meaning|explain|describe)\s+', 0.9, "definition_lookup"),
+                (r'\b(compare|comparison|vs|versus|difference)\s+', 0.8, "comparison_analysis"),
+                (r'\b(latest|recent|current|news|update)\s+', 0.7, "news_current_events"),
+                (r'\b(problem|issue|error|fix|solve|troubleshoot)\s+', 0.7, "troubleshooting")
+            ],
+            "invalid": [
+                (r'\b(call|text|message|send|email)\s+\w+', 0.9, "social_interaction"),
+                (r'\b(turn\s+on|turn\s+off|start|stop|pause|play)\s+\w+', 0.9, "device_control"),
+                (r'\b(add\s+to|remove\s+from|delete|create|make)\s+\w+', 0.8, "file_management"),
+                (r'\b(remind|remember|note|write\s+down)', 0.9, "personal_reminder"),
+                (r'\b(book|schedule|cancel|reserve)\s+\w+', 0.8, "scheduling"),
+                (r'\b(walk|feed|take|bring)\s+my\s+\w+', 0.95, "personal_action"),
+                (r'\b(buy|purchase|order|shop)\s+\w+', 0.8, "personal_action")
+            ]
+        }
         
-        # Extract category
-        category = None
-        for cat in self.valid_categories + self.invalid_patterns:
-            if cat in content_lower:
-                category = cat
-                break
+        # Check invalid patterns first (higher priority)
+        for pattern, confidence, category in context_patterns["invalid"]:
+            if re.search(pattern, query_lower):
+                return QueryValidationResult(
+                    is_valid=False,
+                    confidence=confidence,
+                    reason=f"Contains pattern indicating {category}",
+                    category=category,
+                    validation_method="enhanced_heuristic"
+                )
         
-        return QueryValidationResult(
-            is_valid=is_valid,
-            confidence=confidence,
-            reason=content,
-            category=category
-        )
-    
-    def _rule_based_validate_query(self, query: str) -> QueryValidationResult:
-        """Rule-based validation as fallback"""
-        query_lower = query.lower()
+        # Check valid patterns
+        for pattern, confidence, category in context_patterns["valid"]:
+            if re.search(pattern, query_lower):
+                return QueryValidationResult(
+                    is_valid=True,
+                    confidence=confidence,
+                    reason=f"Contains pattern indicating {category}",
+                    category=category,
+                    validation_method="enhanced_heuristic"
+                )
         
-        # Check for search indicators
-        search_indicators = [
-            "what is", "how to", "best", "top", "guide", "tutorial",
-            "review", "compare", "vs", "difference", "definition",
-            "where to", "when", "why", "who", "which"
-        ]
+        # Word count and structure analysis
+        words = query_lower.split()
         
-        # Check for information-seeking patterns
-        has_search_indicators = any(indicator in query_lower for indicator in search_indicators)
+        # Short queries with action verbs are likely invalid
+        if len(words) <= 3:
+            action_verbs = {'call', 'text', 'send', 'buy', 'get', 'take', 'make', 'do', 'go', 'come'}
+            if any(word in action_verbs for word in words):
+                return QueryValidationResult(
+                    is_valid=False,
+                    confidence=0.7,
+                    reason="Short query with action verbs suggests personal task",
+                    category="personal_action",
+                    validation_method="enhanced_heuristic"
+                )
         
-        # Check for personal action patterns
-        action_indicators = [
-            "walk", "feed", "call", "text", "message", "add to",
-            "buy", "purchase", "order", "remember", "remind",
-            "turn on", "turn off", "play", "stop"
-        ]
+        # Question structure analysis
+        question_indicators = {'what', 'how', 'why', 'when', 'where', 'who', 'which', 'does', 'is', 'are', 'can', 'will', 'should'}
+        has_question_structure = any(word in question_indicators for word in words[:3])
         
-        has_action_indicators = any(indicator in query_lower for indicator in action_indicators)
-        
-        if has_search_indicators and not has_action_indicators:
+        if has_question_structure:
             return QueryValidationResult(
                 is_valid=True,
                 confidence=0.8,
-                reason="Query contains information-seeking patterns",
-                category="information_search"
+                reason="Question structure indicates information seeking",
+                category="information_search",
+                validation_method="enhanced_heuristic"
             )
-        elif has_action_indicators:
-            return QueryValidationResult(
-                is_valid=False,
-                confidence=0.9,
-                reason="Query appears to be a personal action request",
-                category="action_request"
-            )
-        else:
-            # Default to valid for ambiguous queries
-            return QueryValidationResult(
-                is_valid=True,
-                confidence=0.6,
-                reason="Query appears to be information-seeking",
-                category="information_search"
-            ) 
+        
+        # Default to valid but with lower confidence
+        return QueryValidationResult(
+            is_valid=True,
+            confidence=0.6,
+            reason="No clear indicators - defaulting to valid",
+            category="information_search",
+            validation_method="enhanced_heuristic"
+        )
+
+# Backward compatibility
+QueryValidator = EnhancedQueryValidator 
