@@ -1,13 +1,20 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  // Enable standalone output for Docker deployment
+  output: 'standalone',
+  
   async rewrites() {
+    // Use environment variable for backend URL in production
+    const backendUrl = process.env.BACKEND_URL || 'http://localhost:8000';
+    
     return [
       {
         source: '/api/:path*',
-        destination: 'http://localhost:8000/:path*',
+        destination: `${backendUrl}/:path*`,
       },
     ];
   },
+  
   async headers() {
     return [
       {
