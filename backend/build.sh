@@ -22,4 +22,12 @@ echo "🎭 Installing Playwright and browsers..."
 playwright install chromium
 playwright install-deps
 
-echo "✅ Backend build completed successfully!" 
+echo "✅ Backend build completed successfully!"
+
+# Railway deployment
+cd backend
+railway login
+railway init
+railway variables set OPENAI_API_KEY="your-key"
+railway variables set PORT="8000"
+railway deploy
