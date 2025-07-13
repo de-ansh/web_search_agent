@@ -13,8 +13,20 @@ import traceback
 
 from ..core.query_validator import EnhancedQueryValidator
 from ..core.similarity_detector import EnhancedSimilarityDetector
-from ..agents.web_scraping_agent import WebScrapingAgent, ContentType, ScrapingStrategy
 from ..ai.summarizer import ContentSummarizer
+
+# Try to import the full web scraping agent first, fallback to lightweight
+try:
+    from ..agents.web_scraping_agent import WebScrapingAgent, ContentType, ScrapingStrategy
+    PLAYWRIGHT_AVAILABLE = True
+except ImportError:
+    PLAYWRIGHT_AVAILABLE = False
+    WebScrapingAgent = None
+    ContentType = None
+    ScrapingStrategy = None
+
+# Always import the lightweight scraper as fallback
+from ..core.lightweight_scraper import LightweightScraper
 
 app = FastAPI(
     title="Enhanced Web Search Agent API",
@@ -318,7 +330,7 @@ async def clear_cache():
 
 async def _perform_enhanced_web_search(query_str: str, max_results: int, preferred_engines: Optional[List[str]] = None) -> tuple[List[Dict[str, Any]], str]:
     """
-    Enhanced web search using the dedicated scraping agent
+    Enhanced web search using available scraping methods
     """
     start_time = time.time()
     print(f"🚀 Starting enhanced web search for: '{query_str}'")
@@ -333,69 +345,62 @@ async def _perform_enhanced_web_search(query_str: str, max_results: int, preferr
     
     summarizer = ContentSummarizer()
     
-    async with WebScrapingAgent(
-        default_strategy=ScrapingStrategy.HYBRID,
-        max_concurrent_requests=3,
-        request_timeout=30,
-        enable_caching=True
-    ) as scraping_agent:
-        
-        # Search for results
-        print("🔍 Searching with enhanced agent...")
-        search_start = time.time()
-        search_results = await scraping_agent.search_web(
-            search_query,  # Use the enhanced query
-            max_results=max_results,
-            preferred_engines=preferred_engines or ["bing", "duckduckgo"]
-        )
-        search_end = time.time()
-        print(f"🔍 Search completed in {search_end - search_start:.2f}s")
-        
-        if not search_results:
-            return [], "No search results found for your query. Please try different keywords."
-        
-        # Convert search results to URLs for scraping
-        urls_to_scrape = [result.url for result in search_results]
-        
-        # Scrape content in parallel
-        print("📄 Scraping content with enhanced agent...")
-        scraping_start = time.time()
-        scraping_results = await scraping_agent.batch_scrape(
-            urls_to_scrape,
-            content_type=ContentType.TEXT
-        )
-        scraping_end = time.time()
-        print(f"📄 Scraping completed in {scraping_end - scraping_start:.2f}s")
-        
-        # Process results
-        successful_content = []
-        successful_sources = []
-        processed_results = []
-        
-        for i, (search_result, scraping_result) in enumerate(zip(search_results, scraping_results)):
-            # Create result info
-            result_info = {
-                "title": search_result.title,
-                "url": search_result.url,
-                "content_length": len(scraping_result.content),
-                "scraped_successfully": scraping_result.success,
-                "search_engine": search_result.search_engine,
-                "relevance_score": search_result.relevance_score,
-                "scraping_strategy": scraping_result.strategy_used,
-                "scraping_time": scraping_result.scraping_time
-            }
+    if PLAYWRIGHT_AVAILABLE:
+        # Use full WebScrapingAgent when available
+        async with WebScrapingAgent(
+            default_strategy=ScrapingStrategy.HYBRID,
+            max_concurrent_requests=3,
+            request_timeout=30,
+            enable_caching=True
+        ) as scraping_agent:
             
-            # Add summary if content was successfully scraped
-            if scraping_result.success and len(scraping_result.content) > 30:  # Further reduced threshold for better success rate
-                # Validate content matches the original query intent
-                content_valid = _validate_financial_content(scraping_result.content, query_str)
+            # Search for results
+            print("🔍 Searching with enhanced agent...")
+            search_start = time.time()
+            search_results = await scraping_agent.search_web(
+                search_query,
+                max_results=max_results,
+                preferred_engines=preferred_engines or ["bing", "duckduckgo"]
+            )
+            search_end = time.time()
+            print(f"🔍 Search completed in {search_end - search_start:.2f}s")
+            
+            if not search_results:
+                return [], "No search results found for your query. Please try different keywords."
+            
+            # Convert search results to URLs for scraping
+            urls_to_scrape = [result.url for result in search_results]
+            
+            # Scrape content in parallel
+            print("📄 Scraping content with enhanced agent...")
+            scraping_start = time.time()
+            scraping_results = await scraping_agent.batch_scrape(
+                urls_to_scrape,
+                content_type=ContentType.TEXT
+            )
+            scraping_end = time.time()
+            print(f"📄 Scraping completed in {scraping_end - scraping_start:.2f}s")
+            
+            # Process results
+            processed_results = []
+            successful_content = []
+            successful_sources = []
+            
+            for i, (search_result, scraping_result) in enumerate(zip(search_results, scraping_results)):
+                # Create result info
+                result_info = {
+                    "title": search_result.title,
+                    "url": search_result.url,
+                    "content_length": len(scraping_result.content),
+                    "scraped_successfully": scraping_result.success,
+                    "search_engine": search_result.search_engine,
+                    "relevance_score": search_result.relevance_score,
+                    "scraping_strategy": scraping_result.strategy_used,
+                    "scraping_time": scraping_result.scraping_time
+                }
                 
-                if not content_valid:
-                    print(f"⚠️  Content validation failed for {search_result.url} - may be wrong company")
-                    result_info["summary"] = f"Content validation failed: This appears to be about a different company than requested"
-                    result_info["summary_method"] = "validation_failed"
-                    result_info["confidence"] = 0.1
-                else:
+                # Add summary if content was successfully scraped
+                if scraping_result.success and len(scraping_result.content) > 30:
                     try:
                         print(f"📝 Attempting to summarize content from {search_result.url} ({len(scraping_result.content)} chars)")
                         summary_result = summarizer.summarize_content(
@@ -426,79 +431,113 @@ async def _perform_enhanced_web_search(query_str: str, max_results: int, preferr
                         # Still collect for combined summary
                         successful_content.append(scraping_result.content[:1000])
                         successful_sources.append(search_result.title)
-            else:
-                # More detailed error information
-                error_reason = "Content extraction failed"
-                if scraping_result.error:
-                    error_reason += f": {scraping_result.error}"
-                elif len(scraping_result.content) <= 30:
-                    error_reason += f" (only {len(scraping_result.content)} characters extracted)"
+                else:
+                    # More detailed error information
+                    error_reason = "Content extraction failed"
+                    if scraping_result.error:
+                        error_reason += f": {scraping_result.error}"
+                    elif len(scraping_result.content) <= 30:
+                        error_reason += f" (only {len(scraping_result.content)} characters extracted)"
+                    
+                    result_info["summary"] = error_reason
+                    result_info["summary_method"] = "error"
+                    result_info["confidence"] = 0.0
                 
-                result_info["summary"] = error_reason
-                result_info["summary_method"] = "error"
-                result_info["confidence"] = 0.0
-                
-                # Debug logging
-                print(f"🔍 Debug - {search_result.url}: Success={scraping_result.success}, Content_len={len(scraping_result.content)}, Strategy={scraping_result.strategy_used}")
-                if scraping_result.content:
-                    print(f"🔍 Content preview: {scraping_result.content[:200]}...")
-            
-            processed_results.append(result_info)
+                processed_results.append(result_info)
+    
+    else:
+        # Use lightweight scraper for Render deployment
+        print("🔍 Using lightweight scraper (Render mode)...")
+        scraper = LightweightScraper()
         
-        # Generate combined summary
-        combined_summary = ""
-        if successful_content:
-            try:
-                # Pre-process content to remove duplicates before summarization
-                unique_content = []
-                seen_content = set()
-                
-                for content in successful_content:
-                    # Split content into sentences for deduplication
-                    sentences = re.split(r'[.!?]+', content)
-                    unique_sentences = []
-                    
-                    for sentence in sentences:
-                        sentence = sentence.strip()
-                        if len(sentence) < 15:  # Reduced threshold
-                            continue
-                            
-                        # Normalize for comparison
-                        normalized = re.sub(r'\s+', ' ', sentence.lower())
-                        normalized = re.sub(r'[^\w\s]', '', normalized)
-                        
-                        if normalized not in seen_content:
-                            seen_content.add(normalized)
-                            unique_sentences.append(sentence)
-                    
-                    if unique_sentences:
-                        unique_content.append('. '.join(unique_sentences))
-                
-                if unique_content:
-                    combined_content = "\n\n".join(unique_content)
-                    combined_summary_result = summarizer.summarize_content(
-                        content=combined_content,
-                        max_length=350,  # Increased slightly for better coverage
+        # Search and scrape using lightweight method
+        enriched_results = scraper.search_and_scrape(search_query, max_results)
+        
+        if not enriched_results:
+            return [], "No search results found for your query. Please try different keywords."
+        
+        # Process results
+        processed_results = []
+        successful_content = []
+        successful_sources = []
+        
+        for result in enriched_results:
+            result_info = {
+                "title": result['title'],
+                "url": result['url'],
+                "content_length": result['content_length'],
+                "scraped_successfully": result['scraped_successfully'],
+                "search_engine": result['search_engine'],
+                "relevance_score": 1.0,  # Default score
+                "scraping_strategy": "lightweight",
+                "scraping_time": 1.0  # Default time
+            }
+            
+            # Add summary if content was successfully scraped
+            if result['scraped_successfully'] and len(result['content']) > 30:
+                try:
+                    print(f"📝 Attempting to summarize content from {result['url']} ({len(result['content'])} chars)")
+                    summary_result = summarizer.summarize_content(
+                        content=result['content'],
+                        max_length=150,
                         query_context=query_str
                     )
-                    combined_summary = combined_summary_result.summary
                     
-                    # Add source attribution
-                    if successful_sources:
-                        combined_summary += f"\n\nSources: {', '.join(successful_sources[:3])}"
-                        if len(successful_sources) > 3:
-                            combined_summary += f" and {len(successful_sources) - 3} more"
-                else:
-                    combined_summary = "Content was successfully extracted but appears to be duplicated across sources."
-                        
-            except Exception as e:
-                print(f"❌ Combined summary generation failed: {e}")
-                combined_summary = f"Unable to generate combined summary: {str(e)[:100]}..."
-        
-        total_time = time.time() - start_time
-        print(f"✅ Enhanced search completed in {total_time:.2f}s total")
-        
-        return processed_results, combined_summary
+                    result_info.update({
+                        "summary": summary_result.summary,
+                        "summary_method": summary_result.method,
+                        "confidence": summary_result.confidence
+                    })
+                    
+                    # Collect for combined summary
+                    successful_content.append(result['content'][:1000])
+                    successful_sources.append(result['title'])
+                    print(f"✅ Summary created using {summary_result.method} method")
+                    
+                except Exception as e:
+                    print(f"❌ Summarization failed for {result['url']}: {e}")
+                    # Still include the raw content as a fallback
+                    content_preview = result['content'][:300] + "..." if len(result['content']) > 300 else result['content']
+                    result_info["summary"] = f"Raw content preview: {content_preview}"
+                    result_info["summary_method"] = "raw_content"
+                    result_info["confidence"] = 0.3
+                    
+                    # Still collect for combined summary
+                    successful_content.append(result['content'][:1000])
+                    successful_sources.append(result['title'])
+            else:
+                result_info["summary"] = result.get('snippet', 'No content available')
+                result_info["summary_method"] = "snippet"
+                result_info["confidence"] = 0.2
+            
+            processed_results.append(result_info)
+    
+    # Generate combined summary
+    combined_summary = ""
+    if successful_content:
+        try:
+            combined_content = "\n\n".join(successful_content)
+            combined_summary_result = summarizer.summarize_content(
+                content=combined_content,
+                max_length=350,
+                query_context=query_str
+            )
+            combined_summary = combined_summary_result.summary
+            
+            # Add source attribution
+            if successful_sources:
+                combined_summary += f"\n\nSources: {', '.join(successful_sources[:3])}"
+                if len(successful_sources) > 3:
+                    combined_summary += f" and {len(successful_sources) - 3} more"
+                    
+        except Exception as e:
+            print(f"❌ Combined summary generation failed: {e}")
+            combined_summary = f"Unable to generate combined summary: {str(e)[:100]}..."
+    
+    total_time = time.time() - start_time
+    print(f"✅ Enhanced search completed in {total_time:.2f}s total")
+    
+    return processed_results, combined_summary
 
 async def _perform_fast_web_search(query_str: str, max_results: int) -> tuple[List[Dict[str, Any]], str]:
     """

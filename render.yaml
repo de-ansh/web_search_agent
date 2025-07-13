@@ -5,13 +5,15 @@ services:
     env: python
     region: oregon
     plan: free
-    buildCommand: "pip install uv && uv sync --frozen && uv run playwright install chromium && uv run playwright install-deps"
-    startCommand: "uv run uvicorn src.api.main:app --host 0.0.0.0 --port $PORT"
+    buildCommand: "pip install --upgrade pip && pip install -r requirements-render.txt"
+    startCommand: "python -m uvicorn src.api.main_render:app --host 0.0.0.0 --port $PORT"
     envVars:
       - key: PORT
         value: 10000
       - key: PYTHONUNBUFFERED
         value: 1
+      - key: PYTHONPATH
+        value: /opt/render/project/src
       - key: OPENAI_API_KEY
         sync: false # Set manually in Render dashboard
     rootDir: backend
@@ -22,14 +24,19 @@ services:
     env: node
     region: oregon
     plan: free
-    buildCommand: "npm install && npm run build"
+    buildCommand: "npm ci && npm run build"
     startCommand: "npm start"
     envVars:
       - key: PORT
-        value: 10000
+        value: 3000
       - key: NODE_ENV
         value: production
       - key: BACKEND_URL
+        fromService:
+          type: web
+          name: web-search-agent-backend
+          property: host
+      - key: NEXT_PUBLIC_BACKEND_URL
         fromService:
           type: web
           name: web-search-agent-backend
