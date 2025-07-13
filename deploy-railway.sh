@@ -68,8 +68,12 @@ deploy_backend() {
     
     cd backend
     
+    # Make build script executable
+    chmod +x build.sh || true
+    
     # Create railway service for backend
-    railway service create web-search-agent-backend || true
+    echo -e "${YELLOW}Creating Railway service for backend...${NC}"
+    railway service create web-search-agent-backend || railway service
     
     # Set environment variables
     echo -e "${YELLOW}Setting up environment variables...${NC}"
@@ -83,16 +87,41 @@ deploy_backend() {
         exit 1
     fi
     
-    # Set the API key
+    # Set the API key and other variables
     railway variables set OPENAI_API_KEY="$OPENAI_API_KEY"
     railway variables set PORT=8000
     railway variables set PYTHONUNBUFFERED=1
+    railway variables set PYTHONPATH="/app"
     
-    # Deploy
-    railway deploy
+    # Deploy with better error handling
+    echo -e "${YELLOW}Starting deployment...${NC}"
+    if railway deploy; then
+        echo -e "${GREEN}✅ Backend deployment successful${NC}"
+    else
+        echo -e "${RED}❌ Backend deployment failed. Trying alternative method...${NC}"
+        # Try deploying with explicit buildpack
+        railway deploy --detach
+    fi
     
-    # Get the backend URL
-    BACKEND_URL=$(railway status --json | jq -r '.deployments[0].url')
+    # Wait a moment for deployment to complete
+    sleep 10
+    
+    # Get the backend URL with retry logic
+    echo -e "${YELLOW}Getting backend URL...${NC}"
+    for i in {1..5}; do
+        BACKEND_URL=$(railway domain || railway status --json | jq -r '.deployments[0].url' 2>/dev/null || echo "")
+        if [ ! -z "$BACKEND_URL" ] && [ "$BACKEND_URL" != "null" ]; then
+            break
+        fi
+        echo -e "${YELLOW}Waiting for URL... (attempt $i/5)${NC}"
+        sleep 5
+    done
+    
+    if [ -z "$BACKEND_URL" ] || [ "$BACKEND_URL" = "null" ]; then
+        echo -e "${RED}❌ Could not get backend URL. Please check Railway dashboard.${NC}"
+        exit 1
+    fi
+    
     echo -e "${GREEN}✅ Backend deployed at: $BACKEND_URL${NC}"
     
     cd ..
@@ -108,19 +137,45 @@ deploy_frontend() {
     cd frontend
     
     # Create railway service for frontend
-    railway service create web-search-agent-frontend || true
+    echo -e "${YELLOW}Creating Railway service for frontend...${NC}"
+    railway service create web-search-agent-frontend || railway service
     
     # Set environment variables
     BACKEND_URL=$(cat ../.backend_url)
+    echo -e "${YELLOW}Setting frontend environment variables...${NC}"
     railway variables set BACKEND_URL="$BACKEND_URL"
     railway variables set PORT=3000
     railway variables set NODE_ENV=production
+    railway variables set NEXT_TELEMETRY_DISABLED=1
     
-    # Deploy
-    railway deploy
+    # Deploy with error handling
+    echo -e "${YELLOW}Starting frontend deployment...${NC}"
+    if railway deploy; then
+        echo -e "${GREEN}✅ Frontend deployment successful${NC}"
+    else
+        echo -e "${RED}❌ Frontend deployment failed. Trying alternative method...${NC}"
+        railway deploy --detach
+    fi
     
-    # Get the frontend URL
-    FRONTEND_URL=$(railway status --json | jq -r '.deployments[0].url')
+    # Wait for deployment
+    sleep 10
+    
+    # Get the frontend URL with retry logic
+    echo -e "${YELLOW}Getting frontend URL...${NC}"
+    for i in {1..5}; do
+        FRONTEND_URL=$(railway domain || railway status --json | jq -r '.deployments[0].url' 2>/dev/null || echo "")
+        if [ ! -z "$FRONTEND_URL" ] && [ "$FRONTEND_URL" != "null" ]; then
+            break
+        fi
+        echo -e "${YELLOW}Waiting for frontend URL... (attempt $i/5)${NC}"
+        sleep 5
+    done
+    
+    if [ -z "$FRONTEND_URL" ] || [ "$FRONTEND_URL" = "null" ]; then
+        echo -e "${RED}❌ Could not get frontend URL. Please check Railway dashboard.${NC}"
+        FRONTEND_URL="Check Railway dashboard"
+    fi
+    
     echo -e "${GREEN}✅ Frontend deployed at: $FRONTEND_URL${NC}"
     
     cd ..

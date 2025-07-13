@@ -1,20 +1,23 @@
 [phases.setup]
-nixPkgs = ["python310", "nodejs", "chromium"]
+nixPkgs = ["python311", "nodejs", "playwright-driver", "chromium"]
 
 [phases.install]
 cmds = [
+  "pip install --upgrade pip",
   "pip install uv",
-  "uv sync --frozen",
-  "uv run playwright install chromium",
-  "uv run playwright install-deps"
+  "uv sync --frozen || (pip install -r requirements.txt && pip install playwright)",
+  "playwright install chromium --with-deps"
 ]
 
 [phases.build]
-cmds = ["echo 'Build complete'"]
+cmds = [
+  "echo 'Build phase complete'"
+]
 
 [start]
-cmd = "uv run uvicorn src.api.main:app --host 0.0.0.0 --port $PORT"
+cmd = "python -m uvicorn src.api.main:app --host 0.0.0.0 --port $PORT"
 
 [variables]
 PORT = "8000"
-PYTHONUNBUFFERED = "1" 
+PYTHONUNBUFFERED = "1"
+PYTHONPATH = "/app" 
