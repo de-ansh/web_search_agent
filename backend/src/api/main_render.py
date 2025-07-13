@@ -10,9 +10,9 @@ from pydantic import BaseModel
 from typing import List, Dict, Any, Optional
 
 from ..core.query_validator import EnhancedQueryValidator
-from ..core.similarity_detector import EnhancedSimilarityDetector
+from ..core.lightweight_similarity import LightweightSimilarityDetector
 from ..core.lightweight_scraper import LightweightScraper
-from ..ai.summarizer import ContentSummarizer
+from ..ai.lightweight_summarizer import LightweightSummarizer
 
 app = FastAPI(
     title="Web Search Agent API (Render)",
@@ -53,8 +53,8 @@ class HealthResponse(BaseModel):
 
 # Initialize components
 query_validator = EnhancedQueryValidator()
-similarity_detector = EnhancedSimilarityDetector()
-summarizer = ContentSummarizer()
+similarity_detector = LightweightSimilarityDetector()
+summarizer = LightweightSummarizer()
 scraper = LightweightScraper()
 
 @app.get("/", response_model=HealthResponse)

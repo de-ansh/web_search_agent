@@ -26,6 +26,8 @@ required_files=(
     "backend/requirements-render.txt"
     "backend/src/api/main_render.py"
     "backend/src/core/lightweight_scraper.py"
+    "backend/src/core/lightweight_similarity.py"
+    "backend/src/ai/lightweight_summarizer.py"
     "frontend/package.json"
 )
 
@@ -47,13 +49,16 @@ if git diff --cached --exit-code > /dev/null; then
     echo "ℹ️  No changes to commit"
 else
     echo "📝 Committing changes..."
-    git commit -m "feat: Add Render deployment configuration with lightweight scraper
+    git commit -m "feat: Fix Render deployment with complete lightweight architecture
 
-- Add requirements-render.txt with lightweight dependencies
-- Add main_render.py for Render-specific API
-- Add lightweight_scraper.py for requests-only scraping
-- Update render.yaml with optimized configuration
-- Add comprehensive troubleshooting guide"
+- Add requirements-render.txt with scikit-learn for similarity detection
+- Add main_render.py for Render-specific API without heavy dependencies
+- Add lightweight_scraper.py for requests-only web scraping
+- Add lightweight_similarity.py for text-based similarity without embeddings
+- Add lightweight_summarizer.py for OpenAI/extractive summarization without transformers
+- Fix npm dependency conflicts by removing unused React Query
+- Update render.yaml with optimized build configuration
+- Add comprehensive troubleshooting guide with import error fixes"
 fi
 
 # Push to origin

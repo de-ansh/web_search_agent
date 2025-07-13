@@ -15,8 +15,9 @@ pip install -r requirements-render.txt
 
 **Fixed Dependencies**:
 - ✅ Removed: `torch`, `transformers`, `sentence-transformers`, `playwright`
-- ✅ Added: `httpx`, `lxml` for lightweight scraping
+- ✅ Added: `httpx`, `lxml`, `scikit-learn` for lightweight functionality
 - ✅ Kept: `fastapi`, `openai`, `beautifulsoup4`
+- ✅ Created lightweight versions: `main_render.py`, `lightweight_scraper.py`, `lightweight_summarizer.py`, `lightweight_similarity.py`
 
 #### Build Timeout Issue
 **Problem**: Build process exceeds Render's free tier limits
@@ -29,12 +30,18 @@ buildCommand: "pip install --upgrade pip && pip install -r requirements-render.t
 ### 2. **Start Command Issues**
 
 #### Module Not Found
-**Problem**: `ModuleNotFoundError: No module named 'src.api.main'`
+**Problem**: `ModuleNotFoundError: No module named 'src.api.main'` or `ModuleNotFoundError: No module named 'sklearn'`
 
-**Solution**: Use the lightweight main file
+**Solution**: Use the lightweight main file with all dependencies
 ```yaml
 startCommand: "python -m uvicorn src.api.main_render:app --host 0.0.0.0 --port $PORT"
 ```
+
+**Fixed Import Issues**:
+- ✅ `sklearn` - Added to requirements-render.txt
+- ✅ `transformers` - Created lightweight_summarizer.py without transformers
+- ✅ `sentence_transformers` - Created lightweight_similarity.py without embeddings
+- ✅ `playwright` - Created lightweight_scraper.py with requests only
 
 #### Port Configuration
 **Problem**: Service not accessible on the correct port

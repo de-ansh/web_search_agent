@@ -21,4 +21,7 @@ aiofiles>=23.0.0
 
 # Additional dependencies for web scraping without Playwright
 lxml>=4.9.0
-httpx>=0.25.0 
+httpx>=0.25.0
+
+# Lightweight ML for similarity detection
+scikit-learn>=1.3.0 
