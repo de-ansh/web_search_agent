@@ -29,6 +29,22 @@ buildCommand: "pip install --upgrade pip && pip install -r requirements-render.t
 
 ### 2. **Start Command Issues**
 
+#### Backend 502 Error
+**Problem**: Backend service returns 502 error (service not starting)
+
+**Solution**: Check these common issues:
+
+1. **PYTHONPATH Configuration**:
+```yaml
+envVars:
+  - key: PYTHONPATH
+    value: .
+```
+**Note**: Don't set custom PORT variable, Render provides $PORT automatically
+
+2. **Import Issues**: Use relative imports in main_render.py
+3. **Missing Dependencies**: Ensure all imports are in requirements-render.txt
+
 #### Module Not Found
 **Problem**: `ModuleNotFoundError: No module named 'src.api.main'` or `ModuleNotFoundError: No module named 'sklearn'`
 
@@ -46,7 +62,7 @@ startCommand: "python -m uvicorn src.api.main_render:app --host 0.0.0.0 --port $
 #### Port Configuration
 **Problem**: Service not accessible on the correct port
 
-**Solution**: Ensure PORT environment variable is set
+**Solution**: Use Render's provided PORT variable
 ```yaml
 envVars:
   - key: PORT
@@ -134,6 +150,22 @@ buildCommand: "npm ci --legacy-peer-deps && npm run build"
 }
 ```
 **Note**: Next.js requires ESLint during the build process, not just development
+
+#### TypeScript Dependencies Missing
+**Problem**: "TypeScript but do not have the required package(s) installed"
+
+**Solution**: Move TypeScript and type definitions to main `dependencies` section
+```json
+{
+  "dependencies": {
+    "typescript": "^5.8.3",
+    "@types/node": "^20.19.7",
+    "@types/react": "^18.3.23",
+    "@types/react-dom": "^18"
+  }
+}
+```
+**Note**: TypeScript compiler and type definitions are needed during Next.js build process
 
 ### 5. **Resource Limits**
 
