@@ -33,10 +33,10 @@ services:
         fromService:
           type: web
           name: web-search-agent-backend
-          property: host
+          property: hostNoPort
       - key: NEXT_PUBLIC_BACKEND_URL
         fromService:
           type: web
           name: web-search-agent-backend
-          property: host
+          property: hostNoPort
     rootDir: frontend 

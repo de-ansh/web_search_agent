@@ -17,6 +17,19 @@ const nextConfig = {
       backendUrl = `https://${backendUrl}`;
     }
     
+    // Handle incomplete Render hostnames (add .render.com if missing)
+    if (backendUrl && backendUrl.includes('://') && !backendUrl.includes('.render.com') && !backendUrl.includes('localhost')) {
+      // Extract hostname from URL and add .render.com if it looks like a service name
+      const urlParts = backendUrl.split('://');
+      if (urlParts.length === 2) {
+        const hostname = urlParts[1];
+        if (hostname && !hostname.includes('.') && hostname.includes('-')) {
+          backendUrl = `${urlParts[0]}://${hostname}.render.com`;
+          console.log('🔧 Fixed incomplete hostname, updated to:', backendUrl);
+        }
+      }
+    }
+    
     // Handle potential trailing slash
     backendUrl = backendUrl.replace(/\/$/, '');
     
