@@ -94,6 +94,26 @@ envVars:
 
 ### 4. **Frontend Issues**
 
+#### API Connection Problems
+**Problem**: Frontend shows "Backend: Disconnected" or API calls fail
+
+**Debug Steps**:
+1. Check build logs for backend URL construction:
+   ```
+   🔍 Debug - Original BACKEND_URL: your-backend-service.render.com
+   🔍 Debug - Final backend URL: https://your-backend-service.render.com
+   ```
+
+2. Test API endpoints directly:
+   ```bash
+   curl https://your-backend-service.render.com/health
+   curl https://your-frontend-service.render.com/api/health
+   ```
+
+3. Check Next.js rewrite mapping:
+   - `/api/health` → `https://backend-service/health`
+   - `/api/search` → `https://backend-service/search`
+
 #### Backend URL Not Set
 **Problem**: Frontend can't connect to backend
 
@@ -111,6 +131,11 @@ envVars:
       name: web-search-agent-backend
       property: host
 ```
+
+**Common Issues**:
+- Backend service name mismatch
+- Backend service not deployed yet
+- Service discovery delays (wait 2-3 minutes after deployment)
 
 #### Build Process Issues
 **Problem**: Frontend build fails
