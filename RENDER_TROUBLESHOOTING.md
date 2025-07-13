@@ -101,8 +101,39 @@ envVars:
 
 **Solution**: Use npm ci instead of npm install
 ```yaml
-buildCommand: "npm ci && npm run build"
+buildCommand: "npm ci --legacy-peer-deps && npm run build"
 ```
+
+#### CSS Dependencies Not Found
+**Problem**: "Cannot find module 'tailwindcss'" during build
+
+**Solution**: Move CSS build dependencies to main `dependencies` section
+```json
+{
+  "dependencies": {
+    "tailwindcss": "^3.3.6",
+    "postcss": "^8.4.32",
+    "autoprefixer": "^10.4.16"
+  }
+}
+```
+**Note**: Render only installs `dependencies` in production, not `devDependencies`
+
+#### ESLint Required During Build
+**Problem**: "ESLint must be installed in order to run during builds"
+
+**Solution**: Move ESLint dependencies to main `dependencies` section
+```json
+{
+  "dependencies": {
+    "eslint": "^9",
+    "eslint-config-next": "15.3.5",
+    "@eslint/eslintrc": "^3",
+    "typescript": "^5"
+  }
+}
+```
+**Note**: Next.js requires ESLint during the build process, not just development
 
 ### 5. **Resource Limits**
 
