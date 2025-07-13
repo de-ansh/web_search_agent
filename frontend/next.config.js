@@ -5,7 +5,12 @@ const nextConfig = {
   
   async rewrites() {
     // Use environment variable for backend URL in production
-    const backendUrl = process.env.BACKEND_URL || 'http://localhost:8000';
+    let backendUrl = process.env.BACKEND_URL || 'http://localhost:8000';
+    
+    // Ensure backend URL has proper protocol for Render deployment
+    if (backendUrl && !backendUrl.startsWith('http://') && !backendUrl.startsWith('https://')) {
+      backendUrl = `https://${backendUrl}`;
+    }
     
     return [
       {
