@@ -128,7 +128,7 @@ def test_api_keys():
         try:
             import google.generativeai as genai
             genai.configure(api_key=gemini_key)
-            model = genai.GenerativeModel('gemini-pro')
+            model = genai.GenerativeModel('gemini-1.5-flash')
             
             # Simple test
             response = model.generate_content("Say 'Hello, Gemini API is working!'")
