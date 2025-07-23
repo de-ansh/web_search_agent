@@ -12,6 +12,7 @@ dependencies = [
     "playwright>=1.40.0",
     "beautifulsoup4>=4.12.0",
     "openai>=1.0.0",
+    "google-generativeai>=0.3.0",
     "transformers>=4.35.0",
     "torch>=2.0.0",
     "sentence-transformers>=2.2.0",
@@ -28,6 +29,8 @@ requires-python = ">=3.9"
 [project.scripts]
 start-server = "src.api.main:start_server"
 search-cli = "src.cli.main:main"
+setup-gemini = "setup_gemini_api:main"
+test-enhanced = "test_enhanced_research:main"
 
 [tool.uv]
 dev-dependencies = [

@@ -2,6 +2,29 @@
 
 ## Common Issues and Solutions
 
+### 0. **Running Without OpenAI API (Recommended)**
+
+**✅ This is the default and recommended setup!**
+
+**What you'll see**:
+```
+⚠️  No OpenAI API key found, using extractive summarization
+```
+
+**Features without OpenAI**:
+- ✅ **Extractive summarization** (smart sentence scoring)
+- ✅ **Query-aware content extraction** 
+- ✅ **Fast and reliable** (no external API calls)
+- ✅ **Privacy-friendly** (no data sent to external services)
+- ✅ **No API costs or rate limits**
+
+**How it works**:
+- Scores sentences based on length, position, and query relevance
+- Extracts most important sentences for summaries
+- Provides method="extractive" in API responses
+
+**Optional**: To add OpenAI later, just set `OPENAI_API_KEY` in Render dashboard.
+
 ### 1. **Build Failures**
 
 #### Heavy Dependencies Issue
@@ -44,6 +67,41 @@ envVars:
 
 2. **Import Issues**: Use relative imports in main_render.py
 3. **Missing Dependencies**: Ensure all imports are in requirements-render.txt
+
+#### Service Timeout During Startup
+**Problem**: Backend starts but then "Timed Out" error
+
+**Solution**: Add health check configuration:
+```yaml
+services:
+  - type: web
+    name: web-search-agent-backend
+    healthCheckPath: "/health"
+```
+
+**Alternative**: The service works without OpenAI (uses extractive summarization):
+```
+⚠️  No OpenAI API key found, using extractive summarization
+```
+**This is normal and expected behavior!**
+
+#### AttributeError: 'QueryValidationResult' object has no attribute 'to_dict'
+**Problem**: `❌ Search failed: 'QueryValidationResult' object has no attribute 'to_dict'`
+
+**Root Cause**: Pydantic models use `.dict()` method, not `.to_dict()`
+
+**Solution**: Fixed in main_render.py:
+```python
+# Before (broken):
+validation_info=validation_result.to_dict()
+
+# After (fixed):
+validation_info=validation_result.dict()
+```
+
+**Files Updated**:
+- `src/api/main_render.py`: All `.to_dict()` calls changed to `.dict()`
+- Also fixed `validation_result.message` → `validation_result.reason`
 
 #### Module Not Found
 **Problem**: `ModuleNotFoundError: No module named 'src.api.main'` or `ModuleNotFoundError: No module named 'sklearn'`
@@ -136,6 +194,42 @@ envVars:
 - Backend service name mismatch
 - Backend service not deployed yet
 - Service discovery delays (wait 2-3 minutes after deployment)
+
+#### DNS Resolution Error (ENOTFOUND)
+**Problem**: `Failed to proxy https://web-search-agent-backend/health [Error: getaddrinfo ENOTFOUND web-search-agent-backend]`
+
+**Root Cause**: `fromService.property: host` returns incomplete hostname (missing `.render.com`)
+
+**Solution**: Updated render.yaml to use `hostNoPort` and added hostname fix:
+```yaml
+envVars:
+  - key: BACKEND_URL
+    fromService:
+      type: web
+      name: web-search-agent-backend
+      property: hostNoPort  # Changed from 'host'
+```
+
+**Next.js Config Fix**: Automatically adds `.render.com` suffix:
+```javascript
+// Detects incomplete hostnames and fixes them
+if (hostname && !hostname.includes('.') && hostname.includes('-')) {
+  backendUrl = `${protocol}://${hostname}.render.com`;
+}
+```
+
+**Expected Result**: 
+- Before: `https://web-search-agent-backend/health`
+- After: `https://web-search-agent-backend.render.com/health`
+
+**Manual Override** (if `fromService` doesn't work):
+```yaml
+envVars:
+  - key: BACKEND_URL
+    value: https://web-search-agent-backend.render.com
+  - key: NEXT_PUBLIC_BACKEND_URL
+    value: https://web-search-agent-backend.render.com
+```
 
 #### Build Process Issues
 **Problem**: Frontend build fails

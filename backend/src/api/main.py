@@ -14,6 +14,7 @@ import traceback
 from ..core.query_validator import EnhancedQueryValidator
 from ..core.similarity_detector import EnhancedSimilarityDetector
 from ..ai.summarizer import ContentSummarizer
+from ..services.enhanced_research_service import EnhancedResearchService
 
 # Try to import the full web scraping agent first, fallback to lightweight
 try:
@@ -64,6 +65,25 @@ class HealthResponse(BaseModel):
     message: str
     version: str
     features: Dict[str, bool]
+
+class EnhancedResearchRequest(BaseModel):
+    query: str
+    max_sources: Optional[int] = 5
+    summary_length: Optional[int] = 150
+    use_playwright: Optional[bool] = True
+    ai_method: Optional[str] = "gemini"  # "gemini", "openai", "extractive"
+
+class EnhancedResearchResponse(BaseModel):
+    query: str
+    success: bool
+    sources: List[Dict[str, Any]]
+    combined_summary: str
+    individual_summaries: List[Dict[str, Any]]
+    processing_time: float
+    method_used: str
+    total_sources: int
+    successful_scrapes: int
+    error: Optional[str] = None
 
 # Initialize enhanced services
 query_validator = EnhancedQueryValidator()
@@ -327,6 +347,112 @@ async def clear_cache():
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error clearing cache: {str(e)}")
+
+@app.post("/research/enhanced", response_model=EnhancedResearchResponse)
+async def enhanced_research(request: EnhancedResearchRequest):
+    """
+    Enhanced research endpoint with improved web scraping and Gemini AI summarization
+    """
+    try:
+        query_str = request.query.strip()
+        
+        print(f"🔍 Enhanced research request for: {query_str}")
+        
+        if not query_str:
+            raise HTTPException(status_code=400, detail="Query cannot be empty")
+        
+        # Initialize enhanced research service
+        research_service = EnhancedResearchService(
+            use_playwright=request.use_playwright,
+            preferred_ai_method=request.ai_method,
+            max_sources=request.max_sources,
+            summary_length=request.summary_length
+        )
+        
+        # Perform research
+        result = await research_service.research_query(query_str)
+        
+        return EnhancedResearchResponse(
+            query=result.query,
+            success=result.success,
+            sources=result.sources,
+            combined_summary=result.combined_summary,
+            individual_summaries=result.individual_summaries,
+            processing_time=result.processing_time,
+            method_used=result.method_used,
+            total_sources=result.total_sources,
+            successful_scrapes=result.successful_scrapes,
+            error=result.error
+        )
+        
+    except Exception as e:
+        print(f"❌ Error in enhanced research: {str(e)}")
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Enhanced research failed: {str(e)}")
+
+@app.post("/research/quick", response_model=EnhancedResearchResponse)
+async def quick_research(request: EnhancedResearchRequest):
+    """
+    Quick research endpoint with fewer sources for faster results
+    """
+    try:
+        query_str = request.query.strip()
+        
+        print(f"🚀 Quick research request for: {query_str}")
+        
+        if not query_str:
+            raise HTTPException(status_code=400, detail="Query cannot be empty")
+        
+        # Initialize research service with optimized settings for speed
+        research_service = EnhancedResearchService(
+            use_playwright=False,  # Use requests only for speed
+            preferred_ai_method=request.ai_method or "gemini",
+            max_sources=3,  # Limit sources for speed
+            summary_length=100  # Shorter summaries for speed
+        )
+        
+        # Perform quick research
+        result = await research_service.quick_research(query_str, max_sources=3)
+        
+        return EnhancedResearchResponse(
+            query=result.query,
+            success=result.success,
+            sources=result.sources,
+            combined_summary=result.combined_summary,
+            individual_summaries=result.individual_summaries,
+            processing_time=result.processing_time,
+            method_used=result.method_used,
+            total_sources=result.total_sources,
+            successful_scrapes=result.successful_scrapes,
+            error=result.error
+        )
+        
+    except Exception as e:
+        print(f"❌ Error in quick research: {str(e)}")
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Quick research failed: {str(e)}")
+
+@app.get("/research/status")
+async def get_research_status():
+    """Get status of the enhanced research service"""
+    try:
+        # Create a temporary service to get status
+        research_service = EnhancedResearchService()
+        status = research_service.get_status()
+        
+        return {
+            "research_service": status,
+            "api_version": "2.1.0",
+            "enhanced_features": {
+                "gemini_ai_summarization": True,
+                "improved_web_scraping": True,
+                "playwright_support": True,
+                "fallback_scraping": True,
+                "context_aware_summaries": True
+            }
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error getting research status: {str(e)}")
 
 async def _perform_enhanced_web_search(query_str: str, max_results: int, preferred_engines: Optional[List[str]] = None) -> tuple[List[Dict[str, Any]], str]:
     """
