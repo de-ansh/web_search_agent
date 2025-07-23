@@ -1,23 +1,19 @@
 # Enhanced Web Scraping with uv
 
-This guide shows how to run the enhanced web scraping application using `uv`, a fast Python package manager.
+This guide shows how to run the enhanced web scraping project using `uv`, a fast Python package manager.
 
 ## 🚀 Quick Start
 
-### 1. Install uv (if not already installed)
-
+### 1. Install uv
 ```bash
-# On macOS and Linux
+# Install uv (if not already installed)
 curl -LsSf https://astral.sh/uv/install.sh | sh
 
-# On Windows
-powershell -c "irm https://astral.sh/uv/install.sh | iex"
-
-# Or visit: https://docs.astral.sh/uv/getting-started/installation/
+# Or on macOS with Homebrew
+brew install uv
 ```
 
-### 2. Complete Setup and Run
-
+### 2. Setup Everything at Once
 ```bash
 cd backend
 ./run.sh all
@@ -30,311 +26,260 @@ This will:
 - Run tests
 - Start the server
 
-## 📋 Available Commands
+## 📋 Step-by-Step Setup
 
-### Using the Shell Script (Recommended)
-
+### 1. Install Dependencies
 ```bash
-# Set up environment
-./run.sh setup
-
-# Configure API keys
-./run.sh keys
-
-# Run tests
-./run.sh test
-
-# Start server
-./run.sh server
-
-# Run examples
-./run.sh example
-
-# Do everything at once
-./run.sh all
+cd backend
+uv sync
 ```
 
-### Using Python Script
-
+### 2. Install Playwright Browsers
 ```bash
-# Set up environment
-uv run python run_with_uv.py setup
+uv run playwright install chromium
+```
 
-# Configure API keys
-uv run python run_with_uv.py keys
+### 3. Set Up API Keys
+```bash
+uv run python setup_gemini_api.py
+```
 
-# Run tests
-uv run python run_with_uv.py test
+### 4. Test the Installation
+```bash
+uv run python test_runner.py
+```
 
-# Start server
-uv run python run_with_uv.py server
+### 5. Start the Server
+```bash
+uv run uvicorn src.api.main:app --reload
+```
 
-# Do everything
-uv run python run_with_uv.py all
+## 🛠️ Available Commands
+
+### Using the Shell Script (Recommended)
+```bash
+./run.sh setup     # Set up environment and dependencies
+./run.sh keys      # Set up API keys
+./run.sh test      # Run tests
+./run.sh server    # Start the server
+./run.sh example   # Run usage examples
+./run.sh all       # Do everything
+```
+
+### Using the Python Runner
+```bash
+python run_with_uv.py setup    # Set up environment
+python run_with_uv.py keys     # Set up API keys
+python run_with_uv.py test     # Run tests
+python run_with_uv.py server   # Start server
+python run_with_uv.py all      # Do everything
 ```
 
 ### Direct uv Commands
-
 ```bash
-# Install dependencies
-uv sync
-
 # Start the server
-uv run uvicorn src.api.main:app --reload
+uv run uvicorn src.api.main:app --reload --host 0.0.0.0 --port 8000
 
 # Run tests
-uv run python test_enhanced_research.py
+uv run python test_runner.py
 
 # Set up API keys
 uv run python setup_gemini_api.py
 
 # Run examples
 uv run python example_usage.py
+
+# Install new dependencies
+uv add package-name
+
+# Update dependencies
+uv sync
 ```
 
 ## 🔧 Configuration
 
 ### API Keys Setup
+The setup script will help you configure:
 
-The application supports multiple AI providers:
+1. **Gemini API Key** (Primary)
+   - Get from: https://makersuite.google.com/app/apikey
+   - Used for high-quality AI summarization
 
-1. **Gemini AI** (Recommended)
-   - Get your key at: https://makersuite.google.com/app/apikey
-   - Free tier available
-
-2. **OpenAI** (Fallback)
-   - Get your key at: https://platform.openai.com/api-keys
-   - Paid service
-
-3. **Extractive** (No API required)
-   - Rule-based summarization
-   - Works offline
+2. **OpenAI API Key** (Fallback)
+   - Get from: https://platform.openai.com/api-keys
+   - Used as backup when Gemini is unavailable
 
 ### Environment Variables
-
 Create a `.env` file in the backend directory:
-
 ```env
 GEMINI_API_KEY=your_gemini_api_key_here
-OPENAI_API_KEY=your_openai_api_key_here  # Optional
+OPENAI_API_KEY=your_openai_api_key_here
 ```
 
-## 🎯 Usage Examples
+## 🧪 Testing
 
-### 1. Start the Server
-
+### Run All Tests
 ```bash
-cd backend
-./run.sh server
+uv run python test_runner.py
 ```
 
-Server will be available at:
-- 🌐 **Main API**: http://localhost:8000
-- 📚 **API Docs**: http://localhost:8000/docs
-- 🔍 **Enhanced Research**: http://localhost:8000/research/enhanced
-
-### 2. Test the Enhanced Features
-
+### Test Specific Features
 ```bash
-./run.sh test
+# Test API key configuration
+uv run python setup_gemini_api.py
+
+# Test with examples
+uv run python example_usage.py
 ```
 
-### 3. Run Usage Examples
+## 🌐 API Endpoints
 
+Once the server is running, you can access:
+
+- **Health Check**: http://localhost:8000/health
+- **API Documentation**: http://localhost:8000/docs
+- **Enhanced Research**: http://localhost:8000/research/enhanced
+- **Quick Research**: http://localhost:8000/research/quick
+- **Service Status**: http://localhost:8000/research/status
+
+### Example API Usage
 ```bash
-./run.sh example
-```
-
-### 4. API Requests
-
-#### Enhanced Research
-```bash
+# Enhanced research
 curl -X POST "http://localhost:8000/research/enhanced" \
   -H "Content-Type: application/json" \
   -d '{
     "query": "artificial intelligence trends 2024",
     "max_sources": 5,
-    "summary_length": 150,
-    "use_playwright": true,
     "ai_method": "gemini"
   }'
-```
 
-#### Quick Research
-```bash
+# Quick research
 curl -X POST "http://localhost:8000/research/quick" \
   -H "Content-Type: application/json" \
   -d '{
-    "query": "Python web scraping best practices",
-    "max_sources": 3,
-    "ai_method": "gemini"
+    "query": "Python web scraping",
+    "max_sources": 3
   }'
 ```
 
-## 🏗️ Project Structure
+## 📦 Project Structure
 
 ```
 backend/
 ├── src/
-│   ├── api/                 # FastAPI endpoints
-│   ├── services/            # Enhanced research service
-│   ├── ai/                  # AI summarization (Gemini, OpenAI)
-│   ├── core/                # Web scraping components
-│   └── agents/              # Legacy agents
-├── pyproject.toml           # uv configuration
-├── run.sh                   # Shell runner script
-├── run_with_uv.py          # Python runner script
-├── setup_gemini_api.py     # API key setup
-├── test_enhanced_research.py # Test suite
-└── example_usage.py        # Usage examples
+│   ├── api/           # FastAPI endpoints
+│   ├── core/          # Core scraping logic
+│   ├── ai/            # AI summarization
+│   └── services/      # Enhanced research service
+├── pyproject.toml     # uv configuration
+├── run.sh            # Shell runner script
+├── run_with_uv.py    # Python runner script
+├── test_runner.py    # Test runner
+└── setup_gemini_api.py # API key setup
 ```
 
-## 🔍 API Endpoints
+## 🔍 Troubleshooting
 
-### Enhanced Research Endpoints
-
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/research/enhanced` | POST | Comprehensive research with AI |
-| `/research/quick` | POST | Fast research with fewer sources |
-| `/research/status` | GET | Service status and capabilities |
-
-### Legacy Endpoints
-
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/search` | POST | Original search with validation |
-| `/search/fast` | POST | Fast search mode |
-| `/health` | GET | Health check |
-| `/stats` | GET | System statistics |
-
-## 🚦 Development Workflow
-
-### 1. Initial Setup
+### Import Errors
+If you get import errors, make sure you're running from the backend directory:
 ```bash
 cd backend
-./run.sh setup
-./run.sh keys
+uv run python test_runner.py
 ```
 
-### 2. Development
+### API Key Issues
+Test your API keys:
 ```bash
-# Start development server with auto-reload
-uv run uvicorn src.api.main:app --reload --host 0.0.0.0 --port 8000
-
-# Run tests during development
-uv run python test_enhanced_research.py
-
-# Test specific features
-uv run python -c "
-from src.services.enhanced_research_service import EnhancedResearchService
-import asyncio
-
-async def test():
-    service = EnhancedResearchService()
-    result = await service.quick_research('Python async programming')
-    print(result.combined_summary)
-
-asyncio.run(test())
-"
+uv run python setup_gemini_api.py
+# Choose option to test keys
 ```
 
-### 3. Testing
-```bash
-# Run all tests
-./run.sh test
-
-# Test API endpoints
-./run.sh example
-
-# Manual testing
-uv run python -m pytest  # If you add pytest tests
-```
-
-## 🔧 Troubleshooting
-
-### Common Issues
-
-#### 1. uv not found
-```bash
-# Install uv
-curl -LsSf https://astral.sh/uv/install.sh | sh
-# Restart your terminal
-```
-
-#### 2. Playwright browsers not installed
+### Playwright Issues
+Reinstall Playwright browsers:
 ```bash
 uv run playwright install chromium
 ```
 
-#### 3. API key issues
+### Port Already in Use
+Change the port:
 ```bash
-# Reconfigure API keys
-./run.sh keys
-
-# Test API keys
-uv run python setup_gemini_api.py
-```
-
-#### 4. Import errors
-```bash
-# Reinstall dependencies
-uv sync --reinstall
-```
-
-#### 5. Port already in use
-```bash
-# Use different port
 uv run uvicorn src.api.main:app --reload --port 8001
 ```
 
-### Debug Mode
+## 🚀 Performance Tips
 
+### For Development
 ```bash
-# Run with debug logging
-PYTHONPATH=. uv run python -c "
-import logging
-logging.basicConfig(level=logging.DEBUG)
-
-from src.services.enhanced_research_service import EnhancedResearchService
+# Use quick research for faster testing
+uv run python -c "
 import asyncio
+from src.services.enhanced_research_service import EnhancedResearchService
 
-async def debug_test():
-    service = EnhancedResearchService()
-    result = await service.research_query('test query')
-    print(result)
+async def quick_test():
+    service = EnhancedResearchService(use_playwright=False, max_sources=2)
+    result = await service.quick_research('Python tips')
+    print(result.combined_summary)
 
-asyncio.run(debug_test())
+asyncio.run(quick_test())
 "
 ```
 
-## 📊 Performance
+### For Production
+- Set `use_playwright=True` for better scraping
+- Configure both Gemini and OpenAI for redundancy
+- Use appropriate `max_sources` based on your needs
 
-### uv Benefits
-- **Fast installs**: 10-100x faster than pip
-- **Reliable resolution**: Better dependency management
-- **Cross-platform**: Works on macOS, Linux, Windows
-- **Lock files**: Reproducible environments
+## 📈 Monitoring
 
-### Typical Performance
-- **Setup time**: 30-60 seconds (vs 5-10 minutes with pip)
-- **Server start**: 2-3 seconds
-- **Enhanced research**: 8-15 seconds for 5 sources
-- **Quick research**: 3-6 seconds for 3 sources
+### Check Service Status
+```bash
+curl http://localhost:8000/research/status
+```
 
-## 🎉 Next Steps
+### View Logs
+The server will show detailed logs including:
+- Scraping progress
+- AI summarization method used
+- Processing times
+- Error details
 
-1. **Start developing**: `./run.sh server`
-2. **Integrate with your app**: Use the API endpoints
-3. **Customize**: Modify parameters in the service
-4. **Scale**: Deploy with Docker or cloud platforms
-5. **Extend**: Add new AI providers or scraping methods
+## 🔮 Advanced Usage
 
-## 📞 Support
+### Custom Configuration
+```python
+from src.services.enhanced_research_service import EnhancedResearchService
 
-- **Test installation**: `./run.sh test`
-- **Check status**: `curl http://localhost:8000/research/status`
-- **View logs**: Server logs show detailed information
-- **API docs**: http://localhost:8000/docs
+# Custom service configuration
+service = EnhancedResearchService(
+    use_playwright=True,
+    preferred_ai_method="gemini",
+    max_sources=8,
+    summary_length=200
+)
 
-Happy researching with uv! 🚀
+# Perform research
+result = await service.research_query("your query here")
+```
+
+### Batch Processing
+```python
+queries = [
+    "AI trends 2024",
+    "Climate solutions",
+    "Tech innovations"
+]
+
+for query in queries:
+    result = await service.quick_research(query, max_sources=3)
+    print(f"{query}: {result.combined_summary[:100]}...")
+```
+
+## 🎯 Next Steps
+
+1. **Start with setup**: `./run.sh setup`
+2. **Configure API keys**: `./run.sh keys`
+3. **Test everything**: `./run.sh test`
+4. **Start developing**: `./run.sh server`
+5. **Integrate into your app**: Use the API endpoints
+
+For more detailed information, see [ENHANCED_FEATURES.md](ENHANCED_FEATURES.md).

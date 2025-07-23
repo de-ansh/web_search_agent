@@ -69,7 +69,7 @@ test() {
     print_info "Running Enhanced Research Tests"
     echo "==============================="
     
-    uv run python test_enhanced_research.py
+    uv run python test_runner.py
 }
 
 # Start server

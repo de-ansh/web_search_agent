@@ -159,7 +159,7 @@ def run_tests():
     print("\n🧪 Running Enhanced Research Tests")
     print("=" * 35)
     
-    run_command(["uv", "run", "python", "test_enhanced_research.py"], "Running enhanced research tests")
+    run_command(["uv", "run", "python", "test_runner.py"], "Running enhanced research tests")
 
 def show_usage():
     """Show usage instructions"""

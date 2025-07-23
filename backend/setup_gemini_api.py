@@ -148,11 +148,12 @@ def test_api_keys():
             import openai
             client = openai.Client(api_key=openai_key)
             
-            # Simple test
+            # Simple test with timeout
             response = client.chat.completions.create(
                 model="gpt-3.5-turbo",
                 messages=[{"role": "user", "content": "Say 'Hello, OpenAI API is working!'"}],
-                max_tokens=20
+                max_tokens=20,
+                timeout=10
             )
             
             if response.choices[0].message.content:

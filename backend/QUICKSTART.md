@@ -1,88 +1,106 @@
 # 🚀 Quick Start Guide
 
-Get the enhanced web scraping with Gemini AI running in under 5 minutes!
+Get the enhanced web scraping with Gemini AI running in 5 minutes!
 
 ## Prerequisites
 
 - Python 3.9+
-- Internet connection
+- `uv` package manager
 
-## 1. Install uv (if not already installed)
+## Install uv (if needed)
 
 ```bash
-# macOS/Linux
 curl -LsSf https://astral.sh/uv/install.sh | sh
-
-# Windows
-powershell -c "irm https://astral.sh/uv/install.sh | iex"
 ```
 
-## 2. One-Command Setup
+## One-Command Setup
 
 ```bash
 cd backend
 ./run.sh all
 ```
 
-This single command will:
-- ✅ Install all dependencies
-- ✅ Set up Playwright browsers  
-- ✅ Configure your API keys
-- ✅ Run tests
-- ✅ Start the server
+That's it! This will:
+1. ✅ Install all dependencies
+2. ✅ Set up Playwright browsers  
+3. ✅ Help you configure API keys
+4. ✅ Run tests to verify everything works
+5. ✅ Start the server
 
-## 3. Get Your API Key
+## Manual Setup (if you prefer step-by-step)
 
-When prompted, get your free Gemini API key:
-
-1. Go to https://makersuite.google.com/app/apikey
-2. Sign in with Google
-3. Click "Create API Key"
-4. Copy and paste when prompted
-
-## 4. Test It Out
-
-Once the server starts, visit:
-- 🌐 **API**: http://localhost:8000
-- 📚 **Docs**: http://localhost:8000/docs
-
-Try this API call:
+### 1. Install Dependencies
 ```bash
-curl -X POST "http://localhost:8000/research/quick" \
+cd backend
+uv sync
+uv run playwright install chromium
+```
+
+### 2. Set Up API Keys
+```bash
+uv run python setup_gemini_api.py
+```
+
+Get your API keys:
+- **Gemini**: https://makersuite.google.com/app/apikey
+- **OpenAI** (optional): https://platform.openai.com/api-keys
+
+### 3. Test Everything
+```bash
+uv run python test_runner.py
+```
+
+### 4. Start the Server
+```bash
+uv run uvicorn src.api.main:app --reload
+```
+
+## 🎯 Try It Out
+
+Once running, visit:
+- **API Docs**: http://localhost:8000/docs
+- **Health Check**: http://localhost:8000/health
+
+### Test with curl:
+```bash
+curl -X POST "http://localhost:8000/research/enhanced" \
   -H "Content-Type: application/json" \
-  -d '{"query": "Python web scraping 2024", "max_sources": 3}'
+  -d '{
+    "query": "latest AI developments 2024",
+    "max_sources": 3,
+    "ai_method": "gemini"
+  }'
 ```
 
-## 🎉 That's It!
+## 🛠️ Common Commands
 
-You now have:
-- ✅ Enhanced web scraping with multiple fallbacks
-- ✅ Gemini AI for intelligent summarization  
-- ✅ FastAPI server with comprehensive endpoints
-- ✅ Automatic error handling and retries
-
-## Next Steps
-
-- Check out the [full documentation](ENHANCED_FEATURES.md)
-- Run examples: `./run.sh example`
-- Explore the API docs at http://localhost:8000/docs
-
-## Troubleshooting
-
-**uv not found?**
 ```bash
-curl -LsSf https://astral.sh/uv/install.sh | sh
-# Restart your terminal
-```
+# Start server
+./run.sh server
 
-**API key issues?**
-```bash
+# Run tests  
+./run.sh test
+
+# Set up API keys
 ./run.sh keys
+
+# Run examples
+./run.sh example
 ```
 
-**Need help?**
-```bash
-./run.sh --help
-```
+## 🆘 Need Help?
 
-Happy researching! 🔍✨
+- Check [README_UV.md](README_UV.md) for detailed instructions
+- See [ENHANCED_FEATURES.md](ENHANCED_FEATURES.md) for feature documentation
+- Run `./run.sh` without arguments to see all options
+
+## 🎉 You're Ready!
+
+The enhanced web scraping service is now running with:
+- ✅ Reliable web scraping (Playwright + requests fallback)
+- ✅ AI-powered summarization (Gemini + OpenAI fallback)
+- ✅ Context-aware summaries
+- ✅ Multiple search engines
+- ✅ Robust error handling
+
+Happy researching! 🔍
