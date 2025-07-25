@@ -22,5 +22,21 @@
     "category": "information_search",
     "validation_method": "enhanced_heuristic",
     "timestamp": 1752406235.8971908
+  },
+  "whats rag and how does it help ai agents?": {
+    "is_valid": true,
+    "confidence": 0.8,
+    "reason": "Contains pattern indicating information_search",
+    "category": "information_search",
+    "validation_method": "enhanced_heuristic",
+    "timestamp": 1753328896.218204
+  },
+  "whats retrival augmented generation ?": {
+    "is_valid": true,
+    "confidence": 0.6,
+    "reason": "No clear indicators - defaulting to valid",
+    "category": "information_search",
+    "validation_method": "enhanced_heuristic",
+    "timestamp": 1753329177.851965
   }
 }

@@ -13,14 +13,41 @@ interface SearchResult {
   confidence?: number;
   content_length?: number;
   scraped_successfully?: boolean;
+  success?: boolean;
+  method?: string;
+  word_count?: number;
+  processing_time?: number;
+  error?: string;
+}
+
+interface IndividualSummary {
+  source_title: string;
+  source_url: string;
+  summary: string;
+  method: string;
+  confidence: number;
+  word_count: number;
+  processing_time: number;
+  scraping_method: string;
+  scraping_success: boolean;
 }
 
 interface ApiResponse {
-  is_valid: boolean;
-  found_similar: boolean;
-  results: SearchResult[];
-  message: string;
+  is_valid?: boolean;
+  found_similar?: boolean;
+  results?: SearchResult[];
+  message?: string;
   combined_summary?: string;
+  // Enhanced research response fields
+  query?: string;
+  success?: boolean;
+  sources?: SearchResult[];
+  individual_summaries?: IndividualSummary[];
+  processing_time?: number;
+  method_used?: string;
+  total_sources?: number;
+  successful_scrapes?: number;
+  error?: string;
 }
 
 const searchQuotes = [
@@ -36,43 +63,74 @@ const searchQuotes = [
   "Information is not knowledge. - Albert Einstein"
 ];
 
-const fetchSearchResults = async (query: string) => {
-  const endpoint = '/api/search';
-  const requestData = { query: query.trim() };
-  const timeoutMs = 240000; // 4 minutes timeout for enhanced backend processing with LLM validation
+const fetchEnhancedSearchResults = async (query: string) => {
+  const endpoint = '/api/research/enhanced';
+  const requestData = {
+    query: query.trim(),
+    max_sources: 5,
+    summary_length: 150,
+    use_playwright: true,
+    ai_method: "gemini"
+  };
+  const timeoutMs = 300000; // 5 minutes timeout for enhanced research with Gemini AI
 
-  console.log(`Starting search request to ${endpoint} with timeout ${timeoutMs}ms`);
+  console.log(`Starting enhanced research request to ${endpoint} with timeout ${timeoutMs}ms`);
   const startTime = Date.now();
-  
+
   try {
     const response = await axios.post<ApiResponse>(endpoint, requestData, { timeout: timeoutMs });
     const endTime = Date.now();
-    console.log(`Search completed in ${endTime - startTime}ms`);
+    console.log(`Enhanced research completed in ${endTime - startTime}ms`);
     return response.data;
   } catch (error) {
     const endTime = Date.now();
-    console.log(`Search failed after ${endTime - startTime}ms:`, error);
+    console.log(`Enhanced research failed after ${endTime - startTime}ms:`, error);
     throw error;
   }
 };
 
-// Fallback search with reduced features for when main search times out
-const fetchFastSearchResults = async (query: string) => {
-  const endpoint = '/api/search/fast';
-  const requestData = { query: query.trim() };
-  const timeoutMs = 60000; // 1 minute for fast search
+// Quick research with reduced features for when main search times out
+const fetchQuickSearchResults = async (query: string) => {
+  const endpoint = '/api/research/quick';
+  const requestData = {
+    query: query.trim(),
+    max_sources: 3,
+    ai_method: "gemini"
+  };
+  const timeoutMs = 90000; // 1.5 minutes for quick research
 
-  console.log(`Starting fast search request to ${endpoint} with timeout ${timeoutMs}ms`);
+  console.log(`Starting quick research request to ${endpoint} with timeout ${timeoutMs}ms`);
   const startTime = Date.now();
-  
+
   try {
     const response = await axios.post<ApiResponse>(endpoint, requestData, { timeout: timeoutMs });
     const endTime = Date.now();
-    console.log(`Fast search completed in ${endTime - startTime}ms`);
+    console.log(`Quick research completed in ${endTime - startTime}ms`);
     return response.data;
   } catch (error) {
     const endTime = Date.now();
-    console.log(`Fast search failed after ${endTime - startTime}ms:`, error);
+    console.log(`Quick research failed after ${endTime - startTime}ms:`, error);
+    throw error;
+  }
+};
+
+// Legacy fallback for compatibility
+const fetchLegacySearchResults = async (query: string) => {
+  const endpoint = '/api/search';
+  const requestData = { query: query.trim() };
+  const timeoutMs = 120000; // 2 minutes for legacy search
+
+  console.log(`Starting legacy search request to ${endpoint} with timeout ${timeoutMs}ms`);
+  const startTime = Date.now();
+
+  try {
+    const response = await axios.post<ApiResponse>(endpoint, requestData, { timeout: timeoutMs });
+    const endTime = Date.now();
+    console.log(`Legacy search completed in ${endTime - startTime}ms`);
+    return response.data;
+  } catch (error) {
+    const endTime = Date.now();
+    console.log(`Legacy search failed after ${endTime - startTime}ms:`, error);
     throw error;
   }
 };
@@ -89,11 +147,20 @@ export default function Home() {
   useEffect(() => {
     const checkBackendStatus = async () => {
       try {
-        await axios.get('/api/health', { timeout: 10000 });
+        // Try enhanced research status first
+        const response = await axios.get('/api/research/status', { timeout: 10000 });
+        console.log('Enhanced backend status:', response.data);
         setBackendStatus('online');
       } catch (error) {
-        setBackendStatus('offline');
-        console.error('Backend status check failed:', error);
+        try {
+          // Fallback to legacy health check
+          await axios.get('/api/health', { timeout: 5000 });
+          console.log('Legacy backend available');
+          setBackendStatus('online');
+        } catch (legacyError) {
+          setBackendStatus('offline');
+          console.error('Backend status check failed:', error, legacyError);
+        }
       }
     };
     checkBackendStatus();
@@ -120,58 +187,75 @@ export default function Home() {
   const performSearch = async (searchQuery: string) => {
     try {
       setIsSearching(true);
-      setSearchProgress('Checking backend connection...');
-      
+      setSearchProgress('Checking enhanced backend connection...');
+
       // Quick health check to ensure backend is responsive
       try {
-        await axios.get('/api/health', { timeout: 5000 });
+        await axios.get('/api/research/status', { timeout: 5000 });
       } catch {
-        throw new Error('Backend server is not responding. Please make sure the backend is running.');
+        try {
+          await axios.get('/api/health', { timeout: 5000 });
+        } catch {
+          throw new Error('Backend server is not responding. Please make sure the backend is running.');
+        }
       }
-      
-      setSearchProgress('Validating query...');
-      
-      // Show progress updates for enhanced search
+
+      setSearchProgress('Initializing enhanced research...');
+
+      // Show progress updates for enhanced research
       const progressMessages = [
-        'Validating query...',
-        'Searching web engines...',
-        'Processing sources with retry mechanisms...',
-        'Applying circuit breakers and rate limiting...',
-        'Generating comprehensive AI summary...',
+        'Initializing enhanced research...',
+        'Searching multiple web engines...',
+        'Scraping content with Playwright & fallbacks...',
+        'Processing with Gemini AI...',
+        'Generating context-aware summaries...',
+        'Combining insights from all sources...',
         'Finalizing enhanced results...'
       ];
-      
+
       let messageIndex = 0;
       const progressTimer = setInterval(() => {
         messageIndex = Math.min(messageIndex + 1, progressMessages.length - 1);
         setSearchProgress(progressMessages[messageIndex]);
-      }, 5000); // Slower progression for enhanced backend
+      }, 8000); // Slower progression for enhanced backend
 
       try {
-        // Try enhanced search first
-        const result = await fetchSearchResults(searchQuery);
+        // Try enhanced research first
+        const result = await fetchEnhancedSearchResults(searchQuery);
         clearInterval(progressTimer);
-        setResults(result);
+
+        // Transform enhanced response to match frontend expectations
+        const transformedResult = transformEnhancedResponse(result);
+        setResults(transformedResult);
         setSearchProgress('');
       } catch (enhancedSearchError) {
         clearInterval(progressTimer);
-        
-        // If enhanced search times out, try fast search as fallback
+
+        // If enhanced search times out, try quick research as fallback
         if (axios.isAxiosError(enhancedSearchError) && enhancedSearchError.code === 'ECONNABORTED') {
-          console.log('Enhanced search timed out, trying fast search fallback...');
-          setSearchProgress('Enhanced search timed out, trying fast search...');
-          
+          console.log('Enhanced research timed out, trying quick research fallback...');
+          setSearchProgress('Enhanced research timed out, trying quick research...');
+
           try {
-            const fastResult = await fetchFastSearchResults(searchQuery);
-            setResults({
-              ...fastResult,
-              message: `Enhanced search timed out, but here are results from fast search: ${fastResult.message || ''}`
-            });
+            const quickResult = await fetchQuickSearchResults(searchQuery);
+            const transformedResult = transformEnhancedResponse(quickResult);
+            transformedResult.message = `Enhanced research timed out, but here are results from quick research: ${transformedResult.message || ''}`;
+            setResults(transformedResult);
             setSearchProgress('');
-                     } catch (fastSearchError) {
-             console.error('Fast search also failed:', fastSearchError);
-             throw enhancedSearchError; // Throw original error if fast search also fails
-           }
+          } catch (quickSearchError) {
+            console.log('Quick research also failed, trying legacy search...', quickSearchError);
+            setSearchProgress('Trying legacy search as final fallback...');
+
+            try {
+              const legacyResult = await fetchLegacySearchResults(searchQuery);
+              legacyResult.message = `Enhanced features unavailable, showing legacy results: ${legacyResult.message || ''}`;
+              setResults(legacyResult);
+              setSearchProgress('');
+            } catch (legacySearchError) {
+              console.error('All search methods failed:', legacySearchError);
+              throw enhancedSearchError; // Throw original error if all methods fail
+            }
+          }
         } else {
           throw enhancedSearchError; // Re-throw non-timeout errors
         }
@@ -188,7 +272,7 @@ export default function Home() {
           errorMessage += `Server error (${error.response.status}): ${error.response?.data?.detail || error.response?.statusText || 'Internal server error'}`;
         } else if (error.code === 'ECONNABORTED') {
           errorMessage += 'Search timed out. This can happen when websites are slow to respond or have heavy protection. ';
-          errorMessage += 'The system attempted both enhanced and fast search modes. ';
+          errorMessage += 'The system attempted enhanced research, quick research, and legacy search modes. ';
           errorMessage += 'Tips: Try more specific search terms, search for popular topics, or try again in a moment.';
         } else {
           errorMessage += `Error: ${error.response?.data?.detail || error.message}`;
@@ -207,6 +291,49 @@ export default function Home() {
     }
   };
 
+  // Transform enhanced response to match frontend expectations
+  const transformEnhancedResponse = (enhancedResult: ApiResponse): ApiResponse => {
+    if (!enhancedResult.success) {
+      return {
+        is_valid: false,
+        found_similar: false,
+        results: [],
+        message: enhancedResult.error || 'Enhanced research failed'
+      };
+    }
+
+    // Transform sources to match SearchResult interface
+    const transformedResults: SearchResult[] = (enhancedResult.sources || []).map(source => ({
+      title: source.title,
+      url: source.url,
+      summary: '', // Will be filled from individual_summaries
+      summary_method: source.method,
+      confidence: 0.8, // Default confidence
+      content_length: source.word_count,
+      scraped_successfully: source.success
+    }));
+
+    // Add summaries from individual_summaries
+    if (enhancedResult.individual_summaries) {
+      enhancedResult.individual_summaries.forEach((summary, index) => {
+        if (transformedResults[index]) {
+          transformedResults[index].summary = summary.summary;
+          transformedResults[index].summary_method = summary.method;
+          transformedResults[index].confidence = summary.confidence;
+          transformedResults[index].scraped_successfully = summary.scraping_success;
+        }
+      });
+    }
+
+    return {
+      is_valid: true,
+      found_similar: false, // Enhanced research doesn't use cache in the same way
+      results: transformedResults,
+      message: `Enhanced research completed successfully using ${enhancedResult.method_used}. Processed ${enhancedResult.successful_scrapes}/${enhancedResult.total_sources} sources in ${enhancedResult.processing_time?.toFixed(1)}s.`,
+      combined_summary: enhancedResult.combined_summary
+    };
+  };
+
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!query.trim() || isSearching) return;
@@ -223,7 +350,7 @@ export default function Home() {
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
       <div className="container mx-auto px-4 py-8">
         {/* Header */}
-        <motion.div 
+        <motion.div
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
           className="text-center mb-12"
@@ -233,23 +360,22 @@ export default function Home() {
             <h1 className="text-4xl font-bold text-gray-800">Web Search Agent</h1>
           </div>
           <p className="text-lg text-gray-600 max-w-2xl mx-auto mb-3">
-            Intelligent web search with AI-powered comprehensive summaries. Get Perplexity-style insights from multiple sources in seconds.
+            Enhanced web research with Gemini AI-powered summaries. Get comprehensive insights from multiple sources with intelligent content extraction and context-aware analysis.
           </p>
           <div className="flex items-center justify-center gap-2 text-sm">
-            <div className={`w-2 h-2 rounded-full ${
-              backendStatus === 'online' ? 'bg-green-500' : 
+            <div className={`w-2 h-2 rounded-full ${backendStatus === 'online' ? 'bg-green-500' :
               backendStatus === 'offline' ? 'bg-red-500' : 'bg-yellow-500'
-            }`}></div>
+              }`}></div>
             <span className="text-gray-500">
-              Backend: {backendStatus === 'online' ? 'Connected (Enhanced v2.0)' : 
-                       backendStatus === 'offline' ? 'Disconnected' : 'Checking...'} | 
-              Frontend: v2.1 (Enhanced Features)
+              Backend: {backendStatus === 'online' ? 'Connected (Enhanced v2.1 + Gemini AI)' :
+                backendStatus === 'offline' ? 'Disconnected' : 'Checking...'} |
+              Frontend: v2.2 (Enhanced Research Integration)
             </span>
           </div>
         </motion.div>
 
         {/* Search Form */}
-        <motion.form 
+        <motion.form
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.2 }}
@@ -264,7 +390,7 @@ export default function Home() {
               type="text"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Ask me anything... (e.g., 'artificial intelligence trends 2024')"
+              placeholder="Ask me anything... Enhanced with Gemini AI (e.g., 'latest AI developments 2024')"
               className="w-full pl-12 pr-12 py-4 text-lg border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent shadow-lg"
               disabled={isSearching}
             />
@@ -278,7 +404,7 @@ export default function Home() {
               </button>
             )}
           </div>
-          
+
 
 
           <div className="text-center mt-4">
@@ -287,7 +413,7 @@ export default function Home() {
               disabled={isSearching || !query.trim()}
               className="px-8 py-3 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium"
             >
-                              {isSearching ? (
+              {isSearching ? (
                 <span className="flex items-center">
                   <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                   Searching...
@@ -355,9 +481,9 @@ export default function Home() {
                         AI-Powered Overview
                       </h2>
                       <p className="text-indigo-100 text-sm mt-1">
-                        {results.combined_summary ? 
-                          `Comprehensive summary from ${results.results.length} analyzed sources` :
-                          `Analysis of ${results.results.length} search results`
+                        {results.combined_summary ?
+                          `Gemini AI summary from ${results.results?.length || 0} analyzed sources` :
+                          `Analysis of ${results.results?.length || 0} search results`
                         }
                       </p>
                     </div>
@@ -375,7 +501,7 @@ export default function Home() {
                             No comprehensive summary available
                           </div>
                           <p className="text-gray-500 text-sm">
-                            This may be due to content protection on the websites or scraping limitations. 
+                            This may be due to content protection on the websites or scraping limitations.
                             Individual source details are available below.
                           </p>
                         </div>
@@ -397,13 +523,15 @@ export default function Home() {
                   {/* Search Results Section */}
                   <div className="bg-white rounded-xl shadow-lg p-6">
                     <div className="flex items-center justify-between mb-6">
+
+                      Backend: Disconnected | Frontend: v2.2 (Enhanced Research Integration)
                       <h2 className="text-2xl font-bold text-gray-800">Detailed Sources</h2>
                       <div className="flex items-center space-x-4 text-sm text-gray-600">
-                        <span>Found {results.results.length} results</span>
+                        <span>Found {results.results?.length} results</span>
                         <span className="text-gray-400">•</span>
                         <span className="flex items-center">
                           <span className="w-2 h-2 bg-green-500 rounded-full mr-1"></span>
-                          {results.results.filter(r => r.scraped_successfully).length} successfully analyzed
+                          {results.results?.filter(r => r.scraped_successfully).length} successfully analyzed
                         </span>
                       </div>
                     </div>
@@ -416,7 +544,7 @@ export default function Home() {
                           Source materials used for the overview above
                         </span>
                       </div>
-                      {results.results.map((result, index) => (
+                      {results?.results?.map((result, index) => (
                         <motion.div
                           key={index}
                           initial={{ opacity: 0, y: 20 }}
@@ -435,9 +563,9 @@ export default function Home() {
                               </div>
                               <div className="flex-1">
                                 <h3 className="text-lg font-semibold text-gray-800">
-                                  <a 
-                                    href={result.url} 
-                                    target="_blank" 
+                                  <a
+                                    href={result.url}
+                                    target="_blank"
                                     rel="noopener noreferrer"
                                     className="hover:text-indigo-600 transition-colors"
                                   >
@@ -448,11 +576,10 @@ export default function Home() {
                             </div>
                             <div className="flex items-center space-x-2 ml-4">
                               {result.scraped_successfully !== undefined && (
-                                <span className={`px-2 py-1 text-xs rounded-full ${
-                                  result.scraped_successfully 
-                                    ? 'bg-green-100 text-green-700' 
-                                    : 'bg-gray-100 text-gray-600'
-                                }`}>
+                                <span className={`px-2 py-1 text-xs rounded-full ${result.scraped_successfully
+                                  ? 'bg-green-100 text-green-700'
+                                  : 'bg-gray-100 text-gray-600'
+                                  }`}>
                                   {result.scraped_successfully ? '✓ Analyzed' : '⚠ Limited'}
                                 </span>
                               )}
@@ -463,11 +590,11 @@ export default function Home() {
                               )}
                             </div>
                           </div>
-                          
+
                           <p className="text-sm text-indigo-600 mb-3 truncate font-mono bg-gray-50 px-2 py-1 rounded">
                             {result.url}
                           </p>
-                          
+
                           {result.summary && (
                             <div className="mt-3 bg-gray-50 rounded-lg p-4">
                               <h4 className="text-sm font-medium text-gray-700 mb-2 flex items-center">
@@ -483,7 +610,7 @@ export default function Home() {
                               )}
                             </div>
                           )}
-                          
+
                           {result.content_length !== undefined && (
                             <p className="text-xs text-gray-500 mt-2">
                               Content length: {result.content_length} characters
@@ -500,7 +627,7 @@ export default function Home() {
         </AnimatePresence>
 
         {/* Footer */}
-        <motion.footer 
+        <motion.footer
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ delay: 0.5 }}

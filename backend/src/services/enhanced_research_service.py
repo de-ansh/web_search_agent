@@ -56,7 +56,12 @@ class EnhancedResearchService:
         
         # Initialize components
         self.scraper = None
-        self.summarizer = GeminiSummarizer(preferred_method=preferred_ai_method)
+        try:
+            self.summarizer = GeminiSummarizer(preferred_method=preferred_ai_method)
+        except Exception as e:
+            logger.warning(f"Failed to initialize GeminiSummarizer: {e}")
+            # Fallback to a simple summarizer
+            self.summarizer = None
         
         logger.info(f"✅ Enhanced Research Service initialized with {preferred_ai_method} AI")
     
@@ -167,11 +172,28 @@ class EnhancedResearchService:
                 logger.info(f"🤖 Summarizing source {i+1}/{len(scraping_results)}: {result.title[:50]}...")
                 
                 # Generate summary with query context
-                summary_result = self.summarizer.summarize_content(
-                    content=result.content,
-                    max_length=self.summary_length,
-                    query_context=query
-                )
+                if self.summarizer:
+                    summary_result = self.summarizer.summarize_content(
+                        content=result.content,
+                        max_length=self.summary_length,
+                        query_context=query
+                    )
+                else:
+                    # Fallback to simple truncation
+                    content_words = result.content.split()
+                    summary_text = " ".join(content_words[:self.summary_length])
+                    if len(content_words) > self.summary_length:
+                        summary_text += "..."
+                    
+                    from ..ai.gemini_summarizer import SummaryResult
+                    summary_result = SummaryResult(
+                        summary=summary_text,
+                        method="simple_fallback",
+                        word_count=len(summary_text.split()),
+                        original_length=len(content_words),
+                        confidence=0.5,
+                        processing_time=0.1
+                    )
                 
                 individual_summaries.append({
                     'source_title': result.title,

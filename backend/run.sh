@@ -85,7 +85,13 @@ server() {
     echo "Press Ctrl+C to stop the server"
     echo "--------------------------------"
     
-    uv run uvicorn src.api.main:app --reload --host 0.0.0.0 --port 8000
+    # Try lightweight mode first for faster startup
+    if uv run python start_lightweight.py 2>/dev/null; then
+        echo "✅ Started in lightweight mode"
+    else
+        echo "⚠️  Falling back to full mode"
+        uv run uvicorn src.api.main:app --reload --host 0.0.0.0 --port 8000
+    fi
 }
 
 # Run example

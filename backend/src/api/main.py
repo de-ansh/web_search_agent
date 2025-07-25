@@ -11,10 +11,15 @@ from pydantic import BaseModel
 from typing import List, Dict, Any, Optional
 import traceback
 
-from ..core.query_validator import EnhancedQueryValidator
-from ..core.similarity_detector import EnhancedSimilarityDetector
-from ..ai.summarizer import ContentSummarizer
-from ..services.enhanced_research_service import EnhancedResearchService
+try:
+    from ..core.query_validator import EnhancedQueryValidator
+    from ..core.similarity_detector import EnhancedSimilarityDetector
+    from ..ai.summarizer import ContentSummarizer
+    from ..services.enhanced_research_service import EnhancedResearchService
+    HEAVY_DEPS_AVAILABLE = True
+except ImportError as e:
+    print(f"⚠️  Heavy dependencies not available: {e}")
+    HEAVY_DEPS_AVAILABLE = False
 
 # Try to import the full web scraping agent first, fallback to lightweight
 try:

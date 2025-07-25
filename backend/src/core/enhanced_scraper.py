@@ -286,13 +286,28 @@ class EnhancedScraper:
         )
     
     async def _scrape_with_playwright(self, url: str) -> ScrapingResult:
-        """Scrape URL using Playwright"""
+        """Scrape URL using Playwright with improved URL validation"""
         if not self.page:
             raise Exception("Playwright page not initialized")
         
         try:
+            # Validate and clean URL
+            if not url or not url.strip():
+                raise Exception("Empty URL provided")
+            
+            # Clean the URL
+            cleaned_url = self._clean_duckduckgo_url(url)
+            
+            # Validate URL format
+            from urllib.parse import urlparse
+            parsed = urlparse(cleaned_url)
+            if not parsed.scheme or not parsed.netloc:
+                raise Exception(f"Invalid URL format: {cleaned_url}")
+            
+            logger.info(f"Scraping with Playwright: {cleaned_url}")
+            
             # Navigate with timeout
-            await self.page.goto(url, timeout=self.timeout * 1000, wait_until="domcontentloaded")
+            await self.page.goto(cleaned_url, timeout=self.timeout * 1000, wait_until="domcontentloaded")
             
             # Wait for content to load
             await self._intelligent_wait()
@@ -317,7 +332,7 @@ class EnhancedScraper:
             return ScrapingResult(
                 content=main_content,
                 title=title,
-                url=url,
+                url=cleaned_url,
                 success=True,
                 method="playwright",
                 processing_time=0.0,  # Will be set by caller
@@ -328,13 +343,28 @@ class EnhancedScraper:
             raise Exception(f"Playwright scraping failed: {e}")
     
     async def _scrape_with_requests(self, url: str) -> ScrapingResult:
-        """Scrape URL using requests"""
+        """Scrape URL using requests with improved URL validation"""
         try:
+            # Validate and clean URL
+            if not url or not url.strip():
+                raise Exception("Empty URL provided")
+            
+            # Clean the URL
+            cleaned_url = self._clean_duckduckgo_url(url)
+            
+            # Validate URL format
+            from urllib.parse import urlparse
+            parsed = urlparse(cleaned_url)
+            if not parsed.scheme or not parsed.netloc:
+                raise Exception(f"Invalid URL format: {cleaned_url}")
+            
+            logger.info(f"Scraping with requests: {cleaned_url}")
+            
             # Use random user agent
             headers = {'User-Agent': random.choice(self.user_agents)}
             
             # Make request with timeout
-            response = self.session.get(url, headers=headers, timeout=self.timeout)
+            response = self.session.get(cleaned_url, headers=headers, timeout=self.timeout)
             response.raise_for_status()
             
             # Parse content
@@ -354,7 +384,7 @@ class EnhancedScraper:
             return ScrapingResult(
                 content=main_content,
                 title=title,
-                url=url,
+                url=cleaned_url,
                 success=True,
                 method="requests",
                 processing_time=0.0,  # Will be set by caller
@@ -436,70 +466,124 @@ class EnhancedScraper:
             ".content-body",
             ".page-content",
             ".text-content",
+            ".blog-content",
+            ".post-body",
+            ".article-body",
+            ".article-text",
             ".content",
             "#main",
-            "#content"
+            "#content",
+            ".container .content",
+            ".wrapper .content",
+            # Wikipedia specific
+            "#mw-content-text",
+            ".mw-parser-output",
+            # GeeksforGeeks specific
+            ".text",
+            ".article--container",
+            # Common blog patterns
+            ".post",
+            ".entry",
+            ".article"
         ]
         
         main_content = ""
+        best_content = ""
+        best_length = 0
+        
+        # Try multiple selectors and pick the best one
         for selector in content_selectors:
-            element = soup.select_one(selector)
-            if element:
-                text = element.get_text()
-                if len(text.strip()) > 200:  # Ensure substantial content
-                    main_content = text
+            try:
+                elements = soup.select(selector)
+                for element in elements:
+                    text = element.get_text()
+                    if len(text.strip()) > best_length:
+                        best_content = text
+                        best_length = len(text.strip())
+                        if best_length > 500:  # Good enough content found
+                            main_content = best_content
+                            break
+                if main_content:
                     break
+            except Exception as e:
+                logger.debug(f"Error with selector {selector}: {e}")
+                continue
+        
+        # Use the best content found
+        if best_content and not main_content:
+            main_content = best_content
         
         # Fallback to body content if no main content found
-        if not main_content or len(main_content.strip()) < 200:
+        if not main_content or len(main_content.strip()) < 100:
             body = soup.find('body')
             if body:
                 main_content = body.get_text()
         
+        # Final fallback - get all text
+        if not main_content or len(main_content.strip()) < 50:
+            main_content = soup.get_text()
+        
         # Clean and format the text
         if main_content:
-            return self._clean_text(main_content)
+            cleaned = self._clean_text(main_content)
+            logger.info(f"Extracted {len(cleaned)} characters of content")
+            return cleaned
         
         return ""
     
     def _clean_text(self, text: str) -> str:
-        """Clean and normalize extracted text"""
-        # Split into lines and filter
-        lines = text.split('\n')
-        cleaned_lines = []
+        """Clean and normalize extracted text while preserving useful content"""
+        if not text:
+            return ""
         
-        for line in lines:
-            line = line.strip()
+        # First pass: basic cleanup
+        text = re.sub(r'\s+', ' ', text)  # Normalize whitespace
+        text = text.strip()
+        
+        # Split into sentences for better processing
+        sentences = re.split(r'[.!?]+', text)
+        cleaned_sentences = []
+        
+        for sentence in sentences:
+            sentence = sentence.strip()
             
-            # Skip very short lines
-            if len(line) < 20:
+            # Skip very short sentences
+            if len(sentence) < 15:
                 continue
             
-            # Skip lines that look like navigation or boilerplate
-            line_lower = line.lower()
+            # Skip sentences that look like navigation or boilerplate
+            sentence_lower = sentence.lower()
             skip_patterns = [
                 r'click here', r'read more', r'subscribe', r'follow us',
                 r'share this', r'print this', r'back to top',
                 r'skip to content', r'cookie policy', r'privacy policy',
                 r'terms of service', r'all rights reserved',
-                r'loading\.\.\.', r'please wait'
+                r'loading\.\.\.', r'please wait', r'sign up', r'log in',
+                r'menu', r'navigation', r'breadcrumb'
             ]
             
-            should_skip = any(re.search(pattern, line_lower) for pattern in skip_patterns)
+            should_skip = any(re.search(pattern, sentence_lower) for pattern in skip_patterns)
             if should_skip:
                 continue
             
-            # Clean whitespace and add to results
-            line = ' '.join(line.split())
-            if line:
-                cleaned_lines.append(line)
+            # Keep sentences that seem to have useful content
+            if len(sentence) > 30 or any(word in sentence_lower for word in [
+                'the', 'and', 'that', 'with', 'for', 'are', 'can', 'will', 'this', 'what', 'how'
+            ]):
+                cleaned_sentences.append(sentence)
         
-        # Join lines and do final cleanup
-        result = '\n'.join(cleaned_lines)
+        # Join sentences back together
+        if cleaned_sentences:
+            result = '. '.join(cleaned_sentences)
+            if not result.endswith('.'):
+                result += '.'
+        else:
+            # Fallback: use original text with basic cleanup
+            result = text
         
-        # Remove excessive whitespace
-        result = re.sub(r'\n{3,}', '\n\n', result)
-        result = re.sub(r' {2,}', ' ', result)
+        # Final cleanup
+        result = re.sub(r'\s+', ' ', result)
+        result = re.sub(r'\.{2,}', '.', result)
         
         return result.strip()
     
@@ -548,8 +632,37 @@ class EnhancedScraper:
         else:
             raise Exception("Playwright not available for Bing search")
     
+    def _clean_duckduckgo_url(self, url: str) -> str:
+        """Clean DuckDuckGo redirect URLs to get the actual URL"""
+        if not url:
+            return url
+        
+        # Handle DuckDuckGo redirect URLs
+        if 'duckduckgo.com/l/' in url:
+            try:
+                from urllib.parse import unquote, parse_qs, urlparse
+                
+                # Parse the redirect URL
+                parsed = urlparse(url)
+                if parsed.query:
+                    query_params = parse_qs(parsed.query)
+                    if 'uddg' in query_params:
+                        # Decode the actual URL
+                        actual_url = unquote(query_params['uddg'][0])
+                        return actual_url
+            except Exception as e:
+                logger.warning(f"Failed to decode DuckDuckGo URL {url}: {e}")
+        
+        # Fix missing protocol
+        if url.startswith('//'):
+            url = 'https:' + url
+        elif not url.startswith(('http://', 'https://')):
+            url = 'https://' + url
+        
+        return url
+
     async def _search_duckduckgo(self, query: str, max_results: int = 5) -> List[Dict[str, Any]]:
-        """Search using DuckDuckGo"""
+        """Search using DuckDuckGo with improved URL handling"""
         search_url = f"https://duckduckgo.com/html/?q={quote_plus(query)}"
         
         try:
@@ -565,15 +678,19 @@ class EnhancedScraper:
                     title_elem = result_div.find('a', class_='result__a')
                     if title_elem:
                         title = title_elem.get_text().strip()
-                        url = title_elem.get('href', '')
+                        raw_url = title_elem.get('href', '')
+                        
+                        # Clean and decode the URL
+                        cleaned_url = self._clean_duckduckgo_url(raw_url)
                         
                         snippet_elem = result_div.find('a', class_='result__snippet')
                         snippet = snippet_elem.get_text().strip() if snippet_elem else ""
                         
-                        if title and url:
+                        if title and cleaned_url:
+                            logger.info(f"DuckDuckGo result: {title} -> {cleaned_url}")
                             results.append({
                                 'title': title,
-                                'url': url,
+                                'url': cleaned_url,
                                 'snippet': snippet,
                                 'search_engine': 'duckduckgo'
                             })
