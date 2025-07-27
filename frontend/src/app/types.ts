@@ -233,22 +233,28 @@ export type Optional<T, K extends keyof T> = Omit<T, K> & Partial<Pick<T, K>>;
 export type RequiredFields<T, K extends keyof T> = T & Required<Pick<T, K>>;
 
 // Type guards
-export const isRAGChatResponse = (obj: any): obj is RAGChatResponse => {
-  return obj && 
-    typeof obj.content === 'string' &&
-    Array.isArray(obj.sources) &&
-    typeof obj.conversation_id === 'string' &&
-    typeof obj.processing_time === 'number';
+export const isRAGChatResponse = (obj: unknown): obj is RAGChatResponse => {
+  return typeof obj === 'object' &&
+    obj !== null &&
+    'content' in obj &&
+    typeof (obj as Record<string, unknown>).content === 'string' &&
+    'sources' in obj &&
+    Array.isArray((obj as Record<string, unknown>).sources) &&
+    'conversation_id' in obj &&
+    typeof (obj as Record<string, unknown>).conversation_id === 'string' &&
+    'processing_time' in obj &&
+    typeof (obj as Record<string, unknown>).processing_time === 'number';
 };
 
-export const isLegacyApiResponse = (obj: any): obj is LegacyApiResponse => {
-  return obj && (
-    obj.hasOwnProperty('success') ||
-    obj.hasOwnProperty('combined_summary') ||
-    obj.hasOwnProperty('sources')
-  );
+export const isLegacyApiResponse = (obj: unknown): obj is LegacyApiResponse => {
+  return typeof obj === 'object' &&
+    obj !== null && (
+      'success' in obj ||
+      'combined_summary' in obj ||
+      'sources' in obj
+    );
 };
 
-export const isApiError = (obj: any): obj is ApiError => {
-  return obj instanceof Error && obj.hasOwnProperty('response');
+export const isApiError = (obj: unknown): obj is ApiError => {
+  return obj instanceof Error && 'response' in obj;
 };
