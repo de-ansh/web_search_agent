@@ -1,0 +1,58 @@
+# RAG System Docker Image
+FROM python:3.11-slim
+
+# Set working directory
+WORKDIR /app
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    curl \
+    git \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install uv (fast Python package manager)
+RUN pip install uv
+
+# Copy project files
+COPY pyproject.toml ./
+COPY requirements.txt ./
+COPY .env.docker .env
+
+# Install Python dependencies with uv
+RUN uv pip install --system -r requirements.txt
+
+# Install additional RAG dependencies
+RUN uv pip install --system \
+    chromadb>=0.4.0 \
+    sentence-transformers>=2.2.0 \
+    google-generativeai>=0.3.0 \
+    playwright>=1.40.0 \
+    python-dotenv>=1.0.0
+
+# Install Playwright browsers
+RUN playwright install chromium
+
+# Copy source code
+COPY src/ ./src/
+COPY start_rag_agent.py ./
+COPY setup_gemini_api.py ./
+
+# Create data directories
+RUN mkdir -p /app/data/vector_store
+RUN mkdir -p /app/data/conversations
+
+# Set environment variables
+ENV PYTHONPATH=/app
+ENV VECTOR_STORE_PATH=/app/data/vector_store
+ENV CONVERSATION_PERSIST_DIR=/app/data/conversations
+
+# Expose port
+EXPOSE 8000
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
+    CMD curl -f http://localhost:8000/health || exit 1
+
+# Start RAG agent
+CMD ["python", "start_rag_agent.py"]

@@ -1,0 +1,49 @@
+version: '3.8'
+
+services:
+  # RAG Agent with Embedded ChromaDB (Simpler approach)
+  rag-agent:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.rag-light
+    container_name: rag-agent-simple
+    ports:
+      - "8000:8000"
+    volumes:
+      - rag_data:/app/data
+      - ./logs:/app/logs
+    environment:
+      - PYTHONPATH=/app
+      - VECTOR_STORE_PATH=/app/data/vector_store
+      - CONVERSATION_PERSIST_DIR=/app/data/conversations
+    env_file:
+      - .env.docker
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    restart: unless-stopped
+
+  # Redis for Caching (Optional)
+  redis:
+    image: redis:7-alpine
+    container_name: rag-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+
+volumes:
+  rag_data:
+    driver: local
+  redis_data:
+    driver: local

@@ -1,0 +1,61 @@
+# Lightweight RAG System Docker Image (without Playwright)
+FROM python:3.11-slim
+
+# Set working directory
+WORKDIR /app
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    curl \
+    git \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install uv (fast Python package manager)
+RUN pip install uv
+
+# Copy project files
+COPY pyproject.toml ./
+COPY requirements.txt ./
+COPY .env.docker .env
+
+# Install Python dependencies with uv (without Playwright)
+RUN uv pip install --system \
+    fastapi>=0.104.0 \
+    uvicorn[standard]>=0.24.0 \
+    pydantic>=2.0.0 \
+    google-generativeai>=0.3.0 \
+    chromadb>=0.4.0 \
+    sentence-transformers>=2.2.0 \
+    numpy>=1.24.0 \
+    beautifulsoup4>=4.12.0 \
+    requests>=2.31.0 \
+    aiohttp>=3.9.0 \
+    python-dotenv>=1.0.0 \
+    rich>=13.0.0 \
+    pyyaml>=6.0.0 \
+    tenacity>=8.2.0
+
+# Copy source code
+COPY src/ ./src/
+COPY start_rag_agent.py ./
+COPY setup_gemini_api.py ./
+
+# Create data directories
+RUN mkdir -p /app/data/vector_store
+RUN mkdir -p /app/data/conversations
+
+# Set environment variables
+ENV PYTHONPATH=/app
+ENV VECTOR_STORE_PATH=/app/data/vector_store
+ENV CONVERSATION_PERSIST_DIR=/app/data/conversations
+
+# Expose port
+EXPOSE 8000
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
+    CMD curl -f http://localhost:8000/health || exit 1
+
+# Start RAG agent
+CMD ["python", "start_rag_agent.py"]

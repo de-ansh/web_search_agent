@@ -25,6 +25,7 @@
 /backend/.installed.cfg
 /backend/*.egg
 /backend/MANIFEST
+/backend/.env.docker
 
 # PyInstaller
 #  Usually these files are written by a python script from a template

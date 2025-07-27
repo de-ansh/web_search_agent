@@ -5,50 +5,7 @@ import { Search, Loader2, Brain, Lightbulb, Zap } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import axios from 'axios';
 
-interface SearchResult {
-  title: string;
-  url: string;
-  summary?: string;
-  summary_method?: string;
-  confidence?: number;
-  content_length?: number;
-  scraped_successfully?: boolean;
-  success?: boolean;
-  method?: string;
-  word_count?: number;
-  processing_time?: number;
-  error?: string;
-}
-
-interface IndividualSummary {
-  source_title: string;
-  source_url: string;
-  summary: string;
-  method: string;
-  confidence: number;
-  word_count: number;
-  processing_time: number;
-  scraping_method: string;
-  scraping_success: boolean;
-}
-
-interface ApiResponse {
-  is_valid?: boolean;
-  found_similar?: boolean;
-  results?: SearchResult[];
-  message?: string;
-  combined_summary?: string;
-  // Enhanced research response fields
-  query?: string;
-  success?: boolean;
-  sources?: SearchResult[];
-  individual_summaries?: IndividualSummary[];
-  processing_time?: number;
-  method_used?: string;
-  total_sources?: number;
-  successful_scrapes?: number;
-  error?: string;
-}
+// Remove local interfaces - using centralized types instead
 
 const searchQuotes = [
   "The best way to find out if you can trust somebody is to trust them. - Ernest Hemingway",
@@ -63,104 +20,42 @@ const searchQuotes = [
   "Information is not knowledge. - Albert Einstein"
 ];
 
-const fetchEnhancedSearchResults = async (query: string) => {
-  const endpoint = '/api/research/enhanced';
-  const requestData = {
-    query: query.trim(),
-    max_sources: 5,
-    summary_length: 150,
-    use_playwright: true,
-    ai_method: "gemini"
-  };
-  const timeoutMs = 300000; // 5 minutes timeout for enhanced research with Gemini AI
-
-  console.log(`Starting enhanced research request to ${endpoint} with timeout ${timeoutMs}ms`);
-  const startTime = Date.now();
-
-  try {
-    const response = await axios.post<ApiResponse>(endpoint, requestData, { timeout: timeoutMs });
-    const endTime = Date.now();
-    console.log(`Enhanced research completed in ${endTime - startTime}ms`);
-    return response.data;
-  } catch (error) {
-    const endTime = Date.now();
-    console.log(`Enhanced research failed after ${endTime - startTime}ms:`, error);
-    throw error;
-  }
-};
-
-// Quick research with reduced features for when main search times out
-const fetchQuickSearchResults = async (query: string) => {
-  const endpoint = '/api/research/quick';
-  const requestData = {
-    query: query.trim(),
-    max_sources: 3,
-    ai_method: "gemini"
-  };
-  const timeoutMs = 90000; // 1.5 minutes for quick research
-
-  console.log(`Starting quick research request to ${endpoint} with timeout ${timeoutMs}ms`);
-  const startTime = Date.now();
-
-  try {
-    const response = await axios.post<ApiResponse>(endpoint, requestData, { timeout: timeoutMs });
-    const endTime = Date.now();
-    console.log(`Quick research completed in ${endTime - startTime}ms`);
-    return response.data;
-  } catch (error) {
-    const endTime = Date.now();
-    console.log(`Quick research failed after ${endTime - startTime}ms:`, error);
-    throw error;
-  }
-};
-
-// Legacy fallback for compatibility
-const fetchLegacySearchResults = async (query: string) => {
-  const endpoint = '/api/search';
-  const requestData = { query: query.trim() };
-  const timeoutMs = 120000; // 2 minutes for legacy search
-
-  console.log(`Starting legacy search request to ${endpoint} with timeout ${timeoutMs}ms`);
-  const startTime = Date.now();
-
-  try {
-    const response = await axios.post<ApiResponse>(endpoint, requestData, { timeout: timeoutMs });
-    const endTime = Date.now();
-    console.log(`Legacy search completed in ${endTime - startTime}ms`);
-    return response.data;
-  } catch (error) {
-    const endTime = Date.now();
-    console.log(`Legacy search failed after ${endTime - startTime}ms:`, error);
-    throw error;
-  }
-};
+// Import the new RAG API client and types
+import RAGApiClient from './api-client';
+import type { BackendStatus, TransformedLegacyResponse } from './types';
 
 export default function Home() {
   const [query, setQuery] = useState('');
   const [currentQuote, setCurrentQuote] = useState(0);
-  const [backendStatus, setBackendStatus] = useState<'checking' | 'online' | 'offline'>('checking');
+  const [backendStatus, setBackendStatus] = useState<BackendStatus>('checking');
   const [searchProgress, setSearchProgress] = useState('');
-  const [results, setResults] = useState<ApiResponse | null>(null);
+  const [results, setResults] = useState<TransformedLegacyResponse | null>(null);
   const [isSearching, setIsSearching] = useState(false);
 
   // Check backend status on mount
   useEffect(() => {
     const checkBackendStatus = async () => {
       try {
-        // Try enhanced research status first
-        const response = await axios.get('/api/research/status', { timeout: 10000 });
-        console.log('Enhanced backend status:', response.data);
-        setBackendStatus('online');
-      } catch (error) {
-        try {
-          // Fallback to legacy health check
-          await axios.get('/api/health', { timeout: 5000 });
-          console.log('Legacy backend available');
+        // Try RAG agent health check first
+        const healthResponse = await RAGApiClient.checkHealth();
+        console.log('RAG backend status:', healthResponse);
+
+        if (healthResponse.agent_ready) {
           setBackendStatus('online');
-        } catch (legacyError) {
+
+          // Get additional agent info
+          try {
+            const agentStatus = await RAGApiClient.getAgentStatus();
+            console.log('RAG agent details:', agentStatus);
+          } catch (agentError) {
+            console.log('Agent status details unavailable:', agentError);
+          }
+        } else {
           setBackendStatus('offline');
-          console.error('Backend status check failed:', error, legacyError);
         }
+      } catch (error) {
+        setBackendStatus('offline');
+        console.error('RAG backend status check failed:', error);
       }
     };
     checkBackendStatus();
@@ -187,152 +82,97 @@ export default function Home() {
   const performSearch = async (searchQuery: string) => {
     try {
       setIsSearching(true);
-      setSearchProgress('Checking enhanced backend connection...');
+      setSearchProgress('Initializing RAG agent...');
 
-      // Quick health check to ensure backend is responsive
-      try {
-        await axios.get('/api/research/status', { timeout: 5000 });
-      } catch {
-        try {
-          await axios.get('/api/health', { timeout: 5000 });
-        } catch {
-          throw new Error('Backend server is not responding. Please make sure the backend is running.');
-        }
-      }
-
-      setSearchProgress('Initializing enhanced research...');
-
-      // Show progress updates for enhanced research
+      // Show progress updates for RAG research
       const progressMessages = [
-        'Initializing enhanced research...',
-        'Searching multiple web engines...',
-        'Scraping content with Playwright & fallbacks...',
+        'Initializing RAG agent...',
+        'Checking knowledge base...',
+        'Performing web search...',
         'Processing with Gemini AI...',
-        'Generating context-aware summaries...',
-        'Combining insights from all sources...',
-        'Finalizing enhanced results...'
+        'Generating intelligent response...',
+        'Finalizing results...'
       ];
 
       let messageIndex = 0;
       const progressTimer = setInterval(() => {
         messageIndex = Math.min(messageIndex + 1, progressMessages.length - 1);
         setSearchProgress(progressMessages[messageIndex]);
-      }, 8000); // Slower progression for enhanced backend
+      }, 5000);
 
       try {
-        // Try enhanced research first
-        const result = await fetchEnhancedSearchResults(searchQuery);
+        // Use comprehensive search with fallback strategies
+        const searchResult = await RAGApiClient.comprehensiveSearch(searchQuery);
         clearInterval(progressTimer);
 
-        // Transform enhanced response to match frontend expectations
-        const transformedResult = transformEnhancedResponse(result);
-        setResults(transformedResult);
-        setSearchProgress('');
-      } catch (enhancedSearchError) {
-        clearInterval(progressTimer);
-
-        // If enhanced search times out, try quick research as fallback
-        if (axios.isAxiosError(enhancedSearchError) && enhancedSearchError.code === 'ECONNABORTED') {
-          console.log('Enhanced research timed out, trying quick research fallback...');
-          setSearchProgress('Enhanced research timed out, trying quick research...');
-
-          try {
-            const quickResult = await fetchQuickSearchResults(searchQuery);
-            const transformedResult = transformEnhancedResponse(quickResult);
-            transformedResult.message = `Enhanced research timed out, but here are results from quick research: ${transformedResult.message || ''}`;
-            setResults(transformedResult);
-            setSearchProgress('');
-          } catch (quickSearchError) {
-            console.log('Quick research also failed, trying legacy search...', quickSearchError);
-            setSearchProgress('Trying legacy search as final fallback...');
-
-            try {
-              const legacyResult = await fetchLegacySearchResults(searchQuery);
-              legacyResult.message = `Enhanced features unavailable, showing legacy results: ${legacyResult.message || ''}`;
-              setResults(legacyResult);
-              setSearchProgress('');
-            } catch (legacySearchError) {
-              console.error('All search methods failed:', legacySearchError);
-              throw enhancedSearchError; // Throw original error if all methods fail
-            }
+        if (searchResult.success && searchResult.data) {
+          // Add method information to the message
+          let methodMessage = '';
+          switch (searchResult.method) {
+            case 'rag':
+              methodMessage = 'Enhanced RAG Agent with Gemini AI';
+              break;
+            case 'legacy_enhanced':
+              methodMessage = 'Legacy Enhanced Research (RAG unavailable)';
+              break;
+            case 'legacy_quick':
+              methodMessage = 'Quick Research Mode (fallback)';
+              break;
           }
+
+          if (searchResult.data.message) {
+            searchResult.data.message = `${methodMessage}: ${searchResult.data.message}`;
+          } else {
+            searchResult.data.message = `Search completed using ${methodMessage}`;
+          }
+
+          setResults(searchResult.data);
+          setSearchProgress('');
         } else {
-          throw enhancedSearchError; // Re-throw non-timeout errors
+          throw new Error(searchResult.error || 'All search methods failed');
         }
+      } catch (searchError) {
+        clearInterval(progressTimer);
+        throw searchError;
       }
     } catch (error) {
       console.error('Search error:', error);
       let errorMessage = 'Search failed. ';
+
       if (axios.isAxiosError(error)) {
         if (error.code === 'ECONNREFUSED' || error.message.includes('Network Error')) {
-          errorMessage += 'Cannot connect to the backend server. Please make sure the backend is running on http://localhost:8000';
+          errorMessage += 'Cannot connect to the RAG backend server. Please make sure the backend is running on http://localhost:8000';
         } else if (error.response?.status === 404) {
-          errorMessage += 'API endpoint not found. Please check the backend configuration.';
+          errorMessage += 'RAG API endpoint not found. Please check the backend configuration.';
+        } else if (error.response?.status === 503) {
+          errorMessage += 'RAG agent is not available. The backend may be starting up or experiencing issues.';
         } else if (error.response?.status && error.response.status >= 500) {
-          errorMessage += `Server error (${error.response.status}): ${error.response?.data?.detail || error.response?.statusText || 'Internal server error'}`;
+          const errorData = error.response?.data as { detail?: string } | undefined;
+          errorMessage += `Server error (${error.response.status}): ${errorData?.detail || error.response?.statusText || 'Internal server error'}`;
         } else if (error.code === 'ECONNABORTED') {
-          errorMessage += 'Search timed out. This can happen when websites are slow to respond or have heavy protection. ';
-          errorMessage += 'The system attempted enhanced research, quick research, and legacy search modes. ';
-          errorMessage += 'Tips: Try more specific search terms, search for popular topics, or try again in a moment.';
+          errorMessage += 'Search timed out. The RAG system may be processing a complex query. Try a more specific search or try again.';
         } else {
-          errorMessage += `Error: ${error.response?.data?.detail || error.message}`;
+          const errorData = error.response?.data as { detail?: string } | undefined;
+          errorMessage += `Error: ${errorData?.detail || error.message}`;
         }
       } else {
-        errorMessage += 'An unexpected error occurred. Please try again.';
+        // Use type-safe error message extraction
+        errorMessage += RAGApiClient.getErrorMessage(error);
       }
+
       setResults({
         is_valid: false,
         found_similar: false,
         results: [],
-        message: errorMessage
+        message: errorMessage,
+        combined_summary: ''
       });
     } finally {
       setIsSearching(false);
     }
   };
 
-  // Transform enhanced response to match frontend expectations
-  const transformEnhancedResponse = (enhancedResult: ApiResponse): ApiResponse => {
-    if (!enhancedResult.success) {
-      return {
-        is_valid: false,
-        found_similar: false,
-        results: [],
-        message: enhancedResult.error || 'Enhanced research failed'
-      };
-    }
 
-    // Transform sources to match SearchResult interface
-    const transformedResults: SearchResult[] = (enhancedResult.sources || []).map(source => ({
-      title: source.title,
-      url: source.url,
-      summary: '', // Will be filled from individual_summaries
-      summary_method: source.method,
-      confidence: 0.8, // Default confidence
-      content_length: source.word_count,
-      scraped_successfully: source.success
-    }));
-
-    // Add summaries from individual_summaries
-    if (enhancedResult.individual_summaries) {
-      enhancedResult.individual_summaries.forEach((summary, index) => {
-        if (transformedResults[index]) {
-          transformedResults[index].summary = summary.summary;
-          transformedResults[index].summary_method = summary.method;
-          transformedResults[index].confidence = summary.confidence;
-          transformedResults[index].scraped_successfully = summary.scraping_success;
-        }
-      });
-    }
-
-    return {
-      is_valid: true,
-      found_similar: false, // Enhanced research doesn't use cache in the same way
-      results: transformedResults,
-      message: `Enhanced research completed successfully using ${enhancedResult.method_used}. Processed ${enhancedResult.successful_scrapes}/${enhancedResult.total_sources} sources in ${enhancedResult.processing_time?.toFixed(1)}s.`,
-      combined_summary: enhancedResult.combined_summary
-    };
-  };
 
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -360,16 +200,16 @@ export default function Home() {
             <h1 className="text-4xl font-bold text-gray-800">Web Search Agent</h1>
           </div>
           <p className="text-lg text-gray-600 max-w-2xl mx-auto mb-3">
-            Enhanced web research with Gemini AI-powered summaries. Get comprehensive insights from multiple sources with intelligent content extraction and context-aware analysis.
+            Advanced RAG (Retrieval Augmented Generation) system with Gemini AI. Get intelligent responses powered by vector search, conversation memory, and real-time web intelligence.
           </p>
           <div className="flex items-center justify-center gap-2 text-sm">
             <div className={`w-2 h-2 rounded-full ${backendStatus === 'online' ? 'bg-green-500' :
               backendStatus === 'offline' ? 'bg-red-500' : 'bg-yellow-500'
               }`}></div>
             <span className="text-gray-500">
-              Backend: {backendStatus === 'online' ? 'Connected (Enhanced v2.1 + Gemini AI)' :
+              Backend: {backendStatus === 'online' ? 'Connected (RAG Agent v3.0 + Gemini AI)' :
                 backendStatus === 'offline' ? 'Disconnected' : 'Checking...'} |
-              Frontend: v2.2 (Enhanced Research Integration)
+              Frontend: v3.0 (RAG Integration)
             </span>
           </div>
         </motion.div>
@@ -390,7 +230,7 @@ export default function Home() {
               type="text"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Ask me anything... Enhanced with Gemini AI (e.g., 'latest AI developments 2024')"
+              placeholder="Ask me anything... Powered by RAG + Gemini AI (e.g., 'What is machine learning?')"
               className="w-full pl-12 pr-12 py-4 text-lg border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent shadow-lg"
               disabled={isSearching}
             />
@@ -523,8 +363,6 @@ export default function Home() {
                   {/* Search Results Section */}
                   <div className="bg-white rounded-xl shadow-lg p-6">
                     <div className="flex items-center justify-between mb-6">
-
-                      Backend: Disconnected | Frontend: v2.2 (Enhanced Research Integration)
                       <h2 className="text-2xl font-bold text-gray-800">Detailed Sources</h2>
                       <div className="flex items-center space-x-4 text-sm text-gray-600">
                         <span>Found {results.results?.length} results</span>

@@ -74,24 +74,28 @@ test() {
 
 # Start server
 server() {
-    print_info "Starting Enhanced Web Scraping Server"
-    echo "====================================="
+    print_info "Starting RAG AI Agent Server"
+    echo "============================"
     
     echo "Server will be available at:"
     echo "   🌐 http://localhost:8000"
     echo "   📚 API Docs: http://localhost:8000/docs"
-    echo "   🔍 Enhanced Research: http://localhost:8000/research/enhanced"
+    echo "   🤖 RAG Chat: http://localhost:8000/agent/chat"
+    echo "   🔍 Legacy Research: http://localhost:8000/research/enhanced"
     echo ""
     echo "Press Ctrl+C to stop the server"
     echo "--------------------------------"
     
-    # Try lightweight mode first for faster startup
-    if uv run python start_lightweight.py 2>/dev/null; then
-        echo "✅ Started in lightweight mode"
-    else
-        echo "⚠️  Falling back to full mode"
-        uv run uvicorn src.api.main:app --reload --host 0.0.0.0 --port 8000
-    fi
+    # Start RAG agent with uv
+    uv run python start_rag_agent.py
+}
+
+# Start RAG agent
+rag() {
+    print_info "Starting RAG AI Agent"
+    echo "===================="
+    
+    uv run python start_rag_agent.py
 }
 
 # Run example

@@ -1,46 +1,8 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  // Enable standalone output for Docker deployment
-  output: 'standalone',
-  
   async rewrites() {
-    // Use environment variable for backend URL in production
-    let backendUrl = process.env.BACKEND_URL || 'http://localhost:8000';
-    
-    // Debug: Log the backend URL for troubleshooting
-    console.log('🔍 Debug - Original BACKEND_URL:', process.env.BACKEND_URL);
-    console.log('🔍 Debug - Processing backend URL:', backendUrl);
-    
-    // Ensure backend URL has proper protocol for Render deployment
-    if (backendUrl && !backendUrl.startsWith('http://') && !backendUrl.startsWith('https://')) {
-      // For Render, use https by default
-      backendUrl = `https://${backendUrl}`;
-    }
-    
-    // Handle incomplete Render hostnames (add .render.com if missing)
-    if (backendUrl && backendUrl.includes('://') && !backendUrl.includes('.render.com') && !backendUrl.includes('localhost')) {
-      // Extract hostname from URL and add .render.com if it looks like a service name
-      const urlParts = backendUrl.split('://');
-      if (urlParts.length === 2) {
-        const hostname = urlParts[1];
-        if (hostname && !hostname.includes('.') && hostname.includes('-')) {
-          backendUrl = `${urlParts[0]}://${hostname}.render.com`;
-          console.log('🔧 Fixed incomplete hostname, updated to:', backendUrl);
-        }
-      }
-    }
-    
-    // Handle potential trailing slash
-    backendUrl = backendUrl.replace(/\/$/, '');
-    
-    // Additional validation
-    if (!backendUrl || backendUrl === 'https://' || backendUrl === 'http://') {
-      console.error('❌ Invalid BACKEND_URL detected, falling back to localhost');
-      backendUrl = 'http://localhost:8000';
-    }
-    
-    console.log('🔍 Debug - Final backend URL:', backendUrl);
-    console.log('🔍 Debug - API rewrite: /api/:path* → ' + backendUrl + '/:path*');
+    // Get backend URL from environment or default to localhost
+    const backendUrl = process.env.BACKEND_URL || 'http://localhost:8000';
     
     return [
       {
@@ -50,19 +12,15 @@ const nextConfig = {
     ];
   },
   
-  async headers() {
-    return [
-      {
-        source: '/api/:path*',
-        headers: [
-          { key: 'Access-Control-Allow-Credentials', value: 'true' },
-          { key: 'Access-Control-Allow-Origin', value: '*' },
-          { key: 'Access-Control-Allow-Methods', value: 'GET,OPTIONS,PATCH,DELETE,POST,PUT' },
-          { key: 'Access-Control-Allow-Headers', value: 'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version' },
-        ],
-      },
-    ];
+  // Environment variables for the frontend
+  env: {
+    BACKEND_URL: process.env.BACKEND_URL || 'http://localhost:8000',
+  },
+  
+  // Enable experimental features if needed
+  experimental: {
+    // Add any experimental features here
   },
 };
 
-module.exports = nextConfig; 
+module.exports = nextConfig;

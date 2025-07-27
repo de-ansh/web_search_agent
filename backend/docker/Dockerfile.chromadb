@@ -1,0 +1,40 @@
+# ChromaDB Docker Image
+FROM python:3.11-slim
+
+# Set working directory
+WORKDIR /chroma
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install ChromaDB and dependencies
+RUN pip install --no-cache-dir \
+    chromadb>=0.4.0 \
+    sentence-transformers>=2.2.0 \
+    numpy>=1.24.0
+
+# Create data directory
+RUN mkdir -p /chroma/data
+
+# Expose ChromaDB port
+EXPOSE 8000
+
+# Set environment variables
+ENV CHROMA_HOST=0.0.0.0
+ENV CHROMA_PORT=8000
+ENV CHROMA_PERSIST_DIRECTORY=/chroma/data
+ENV CHROMA_SERVER_AUTHN_CREDENTIALS_FILE=/chroma/server.htpasswd
+ENV CHROMA_SERVER_AUTHN_PROVIDER=chromadb.auth.basic.BasicAuthServerProvider
+
+# Create a simple auth file (optional)
+RUN echo "admin:$2b$12$0ZrF3Qs8Zq8Zq8Zq8Zq8ZuO" > /chroma/server.htpasswd
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+    CMD curl -f http://localhost:8000/api/v1/heartbeat || exit 1
+
+# Start ChromaDB server
+CMD ["python", "-m", "chromadb.cli", "run", "--host", "0.0.0.0", "--port", "8000", "--path", "/chroma/data"]
