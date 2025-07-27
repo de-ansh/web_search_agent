@@ -9,16 +9,16 @@ from typing import List, Dict, Any, Optional, Set
 from dataclasses import dataclass
 import logging
 
-# Import existing enhanced scraper
+# Import working lightweight scraper
 import sys
 from pathlib import Path
 sys.path.append(str(Path(__file__).parent.parent.parent.parent))
 
 try:
-    from src.core.enhanced_scraper import EnhancedScraper
+    from src.core.lightweight_scraper import LightweightScraper
 except ImportError:
     # Fallback if import fails
-    EnhancedScraper = None
+    LightweightScraper = None
 
 logger = logging.getLogger(__name__)
 
@@ -85,10 +85,10 @@ class EnhancedWebSearchTool:
             'negative': ['click here', 'buy now', 'advertisement', 'sponsored', 'popup', 'subscribe']
         }
         
-        if EnhancedScraper:
-            logger.info("✅ Enhanced web search tool initialized with intelligent processing")
+        if LightweightScraper:
+            logger.info("✅ Enhanced web search tool initialized with lightweight scraper")
         else:
-            logger.warning("⚠️ Enhanced scraper not available, using fallback")
+            logger.warning("⚠️ Lightweight scraper not available, using fallback")
     
     async def search_and_process(
         self,
@@ -111,35 +111,31 @@ class EnhancedWebSearchTool:
         start_time = time.time()
         
         try:
-            if EnhancedScraper:
-                # Use enhanced scraper with more results for filtering
-                search_limit = min(max_results * 2, 10)  # Get more results for filtering
+            if LightweightScraper:
+                # Use lightweight scraper for real web search
+                scraper = LightweightScraper(timeout=self.timeout)
                 
-                async with EnhancedScraper(
-                    use_playwright=False,  # Use requests for speed
-                    timeout=self.timeout,
-                    max_retries=1
-                ) as scraper:
-                    raw_results = await scraper.search_and_scrape(query, search_limit)
-                    
-                    # Process and enhance results
-                    enhanced_results = []
-                    for result in raw_results:
-                        if result.success and result.content:
-                            enhanced_result = await self._enhance_result(
-                                result, query, query_context
-                            )
-                            enhanced_results.append(enhanced_result)
-                    
-                    # Apply intelligent filtering and ranking
-                    filtered_results = await self._intelligent_filter_and_rank(
-                        enhanced_results, query, max_results
-                    )
-                    
-                    processing_time = time.time() - start_time
-                    logger.info(f"✅ Enhanced web search returned {len(filtered_results)} results in {processing_time:.2f}s")
-                    
-                    return [self._result_to_dict(result) for result in filtered_results]
+                # Perform actual web search and scraping
+                raw_results = scraper.search_and_scrape(query, max_results)
+                
+                # Process and enhance results
+                enhanced_results = []
+                for result in raw_results:
+                    if result.get('content') or result.get('snippet'):
+                        enhanced_result = await self._enhance_lightweight_result(
+                            result, query, query_context
+                        )
+                        enhanced_results.append(enhanced_result)
+                
+                # Apply intelligent filtering and ranking
+                filtered_results = await self._intelligent_filter_and_rank(
+                    enhanced_results, query, max_results
+                )
+                
+                processing_time = time.time() - start_time
+                logger.info(f"✅ Real web search returned {len(filtered_results)} results in {processing_time:.2f}s")
+                
+                return [self._result_to_dict(result) for result in filtered_results]
             else:
                 # Fallback implementation
                 return await self._fallback_search(query, max_results)
@@ -148,6 +144,63 @@ class EnhancedWebSearchTool:
             logger.error(f"❌ Enhanced web search failed: {e}")
             return []
     
+    async def _enhance_lightweight_result(
+        self, 
+        raw_result: Dict[str, Any], 
+        query: str, 
+        query_context: Optional[str]
+    ) -> SearchResult:
+        """Enhance a lightweight scraper result with intelligence metrics"""
+        
+        content = raw_result.get('content', '') or raw_result.get('snippet', '')
+        title = raw_result.get('title', '')
+        url = raw_result.get('url', '')
+        
+        # Calculate relevance score
+        relevance_score = self._calculate_relevance_score(
+            content, title, query, query_context
+        )
+        
+        # Calculate authority score
+        authority_score = self._calculate_authority_score(url)
+        
+        # Calculate content quality score
+        content_quality_score = self._calculate_content_quality_score(content)
+        
+        # Calculate freshness score (placeholder - would need date extraction)
+        freshness_score = 0.5  # Default neutral freshness
+        
+        # Extract key topics
+        key_topics = self._extract_key_topics(content, query)
+        
+        # Analyze sentiment (simple implementation)
+        sentiment = self._analyze_sentiment(content)
+        
+        # Calculate overall score
+        overall_score = (
+            relevance_score * 0.4 +
+            authority_score * 0.2 +
+            content_quality_score * 0.2 +
+            freshness_score * 0.2
+        )
+        
+        return SearchResult(
+            title=title,
+            url=url,
+            content=content,
+            score=overall_score,
+            source='web_search_real',
+            method=raw_result.get('search_engine', 'unknown'),
+            word_count=len(content.split()) if content else 0,
+            relevance_score=relevance_score,
+            freshness_score=freshness_score,
+            authority_score=authority_score,
+            content_quality_score=content_quality_score,
+            key_topics=key_topics,
+            sentiment=sentiment,
+            language='en'  # Default, could be detected
+        )
+
     async def _enhance_result(
         self, 
         raw_result: Any, 
@@ -419,33 +472,12 @@ class EnhancedWebSearchTool:
         }
     
     async def _fallback_search(self, query: str, max_results: int) -> List[Dict[str, Any]]:
-        """Enhanced fallback search implementation"""
+        """Fallback search when real search is unavailable"""
         
-        logger.warning("⚠️ Using enhanced fallback search (returns intelligent mock data)")
+        logger.error("❌ Real web search unavailable - check scraper dependencies")
         
-        # Generate more realistic mock results with intelligence metrics
-        mock_results = []
-        
-        for i in range(min(max_results, 3)):
-            result = {
-                'title': f"Enhanced Result {i+1}: {query}",
-                'url': f"https://example{i+1}.com/article?q={query.replace(' ', '-')}",
-                'content': f"This is an enhanced mock search result for '{query}'. It demonstrates intelligent content processing with relevance scoring, authority metrics, and content quality analysis. The system can handle complex queries and provide contextually relevant information.",
-                'score': 0.8 - (i * 0.1),  # Decreasing scores
-                'source': 'web_search_enhanced_fallback',
-                'method': 'mock_enhanced',
-                'word_count': 45 + (i * 5),
-                'relevance_score': 0.9 - (i * 0.1),
-                'freshness_score': 0.7,
-                'authority_score': 0.6 + (i * 0.1),
-                'content_quality_score': 0.8 - (i * 0.05),
-                'key_topics': [query.split()[0] if query.split() else 'topic', 'information', 'analysis'],
-                'sentiment': 'neutral',
-                'language': 'en'
-            }
-            mock_results.append(result)
-        
-        return mock_results
+        # Return empty results instead of mock data
+        return []
 
 # Backward compatibility alias
 WebSearchTool = EnhancedWebSearchTool
