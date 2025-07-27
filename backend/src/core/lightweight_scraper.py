@@ -56,6 +56,13 @@ class LightweightScraper:
                         title = title_elem.get_text().strip()
                         url = title_elem.get('href', '')
                         
+                        # Extract actual URL from DuckDuckGo redirect
+                        if 'uddg=' in url:
+                            import urllib.parse
+                            parsed = urllib.parse.parse_qs(urllib.parse.urlparse(url).query)
+                            if 'uddg' in parsed:
+                                url = urllib.parse.unquote(parsed['uddg'][0])
+                        
                         # Get snippet
                         snippet_elem = result_div.find('a', class_='result__snippet')
                         snippet = snippet_elem.get_text().strip() if snippet_elem else ""
@@ -125,6 +132,12 @@ class LightweightScraper:
     def scrape_content(self, url: str) -> Dict[str, Any]:
         """Scrape content from a URL"""
         try:
+            # Fix relative URLs from DuckDuckGo
+            if url.startswith('//'):
+                url = 'https:' + url
+            elif not url.startswith(('http://', 'https://')):
+                url = 'https://' + url
+                
             headers = {'User-Agent': random.choice(self.user_agents)}
             response = self.session.get(url, headers=headers, timeout=self.timeout)
             response.raise_for_status()
